@@ -40,4 +40,7 @@ wp_clear_scheduled_hook( SKIT_Database::CRON_HOOK );
 
 delete_option( SKIT_OPTION_KEY );
 delete_option( SKIT_Preload::QUEUE_OPTION );
+delete_option( 'skit_version' );
+delete_option( 'skit_wp_cache_original' );
 delete_transient( 'skit_activation_conflict' );
+delete_transient( 'skit_db_cleanup_result' );

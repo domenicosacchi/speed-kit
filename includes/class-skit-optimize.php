@@ -321,7 +321,9 @@ JS;
 		$minified = strtr( $protected, $placeholders );
 
 		// Sanity check: se qualcosa è andato storto, torna all'originale.
-		if ( false !== strpos( $minified, '%%SKIT-MINIFY-' ) ) {
+		// A failing regex (e.g. PCRE backtrack limit on a huge page) returns
+		// null, cast to '' above: never replace a page with an empty string.
+		if ( false !== strpos( $minified, '%%SKIT-MINIFY-' ) || strlen( $minified ) < strlen( $html ) / 4 ) {
 			return $html;
 		}
 

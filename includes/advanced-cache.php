@@ -68,7 +68,7 @@ function skit_ac_maybe_serve() {
 	}
 
 	$file = skit_ac_cache_file_path( $path, $config );
-	if ( ! is_readable( $file ) ) {
+	if ( '' === $file || ! is_readable( $file ) ) {
 		return;
 	}
 
@@ -228,6 +228,11 @@ function skit_ac_is_mobile() {
 function skit_ac_cache_file_path( $path, $config ) {
 	$host = strtolower( preg_replace( '/[^a-z0-9.\-:]/i', '', (string) $_SERVER['HTTP_HOST'] ) );
 	$host = str_replace( ':', '-', $host );
+	// The Host header is client-controlled: a value such as ".." would point
+	// outside the cache directory.
+	if ( '' === $host || '.' === $host[0] || false !== strpos( $host, '..' ) ) {
+		return '';
+	}
 
 	$is_https = ( isset( $_SERVER['HTTPS'] ) && 'off' !== strtolower( (string) $_SERVER['HTTPS'] ) )
 		|| ( isset( $_SERVER['SERVER_PORT'] ) && 443 === (int) $_SERVER['SERVER_PORT'] )

@@ -53,7 +53,13 @@ class SKIT_Htaccess {
 			return false;
 		}
 
-		$content = file_exists( $file ) ? (string) file_get_contents( $file ) : ''; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		$exists = file_exists( $file );
+		if ( $exists ? ! is_writable( $file ) : ! is_writable( dirname( $file ) ) ) {
+			return false;
+		}
+
+		$original = $exists ? (string) file_get_contents( $file ) : ''; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		$content  = $original;
 		if ( '' === $content && '' === $rules ) {
 			return true;
 		}
@@ -70,7 +76,26 @@ class SKIT_Htaccess {
 			$content = $begin . "\n" . $rules . "\n" . $end . "\n\n" . $content;
 		}
 
-		return false !== file_put_contents( $file, $content, LOCK_EX ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+		if ( $content === $original ) {
+			return true;
+		}
+
+		// Verified write with rollback to the previous content.
+		return SKIT_Config::safe_write( $file, $content, $original );
+	}
+
+	/**
+	 * True if .htaccess currently contains the SpeedKit block.
+	 *
+	 * @return bool
+	 */
+	public static function has_rules() {
+		$file = self::htaccess_path();
+		if ( '' === $file || ! is_readable( $file ) ) {
+			return false;
+		}
+
+		return false !== strpos( (string) file_get_contents( $file ), '# BEGIN ' . self::MARKER ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
 	}
 
 	/**
@@ -79,14 +104,12 @@ class SKIT_Htaccess {
 	 * @return string
 	 */
 	private static function htaccess_path() {
-		if ( function_exists( 'get_home_path' ) ) {
-			$home = get_home_path();
-		} elseif ( is_admin() ) {
+		// get_home_path() also handles WordPress installed in a subdirectory
+		// with the site served from the parent one.
+		if ( ! function_exists( 'get_home_path' ) && is_readable( ABSPATH . 'wp-admin/includes/file.php' ) ) {
 			require_once ABSPATH . 'wp-admin/includes/file.php';
-			$home = get_home_path();
-		} else {
-			$home = ABSPATH;
 		}
+		$home = function_exists( 'get_home_path' ) ? get_home_path() : ABSPATH;
 
 		return $home ? trailingslashit( $home ) . '.htaccess' : '';
 	}
@@ -117,7 +140,7 @@ class SKIT_Htaccess {
 			$lines = array_merge( $lines, self::expires_rules() );
 		}
 
-		if ( ! empty( $settings['htaccess_direct_serve'] ) && ! empty( $settings['cache_enabled'] ) ) {
+		if ( ! empty( $settings['htaccess_direct_serve'] ) && ! empty( $settings['cache_enabled'] ) && '' !== self::cache_root_relative() ) {
 			$lines = array_merge( $lines, self::rewrite_rules( $settings ) );
 		}
 
@@ -199,8 +222,17 @@ class SKIT_Htaccess {
 	private static function rewrite_rules( array $settings ) {
 		$cache_root = self::cache_root_relative();
 
-		// Deve restare allineata alla lista skip_cookies del drop-in.
-		$skip_cookies = 'wordpress_logged_in_|wordpress_sec_|wp\-postpass_|comment_author_|woocommerce_cart_hash|woocommerce_items_in_cart|wp_woocommerce_session_|edd_items_in_cart';
+		// Same list used by the drop-in and by the page cache (names are
+		// already restricted to [A-Za-z0-9_.-], quoted here for the regex).
+		$skip_cookies = implode(
+			'|',
+			array_map(
+				function ( $cookie ) {
+					return preg_quote( $cookie, '#' );
+				},
+				SKIT_Config::skip_cookies( $settings )
+			)
+		);
 
 		$lines   = array();
 		$lines[] = '<IfModule mod_rewrite.c>';
@@ -236,9 +268,13 @@ class SKIT_Htaccess {
 	 * @return string
 	 */
 	private static function cache_root_relative() {
-		$content_url = wp_parse_url( content_url(), PHP_URL_PATH );
-		$content_url = $content_url ? untrailingslashit( $content_url ) : '/wp-content';
+		// Follows a custom SKIT_CACHE_DIR; '' when it is not web-accessible.
+		$cache_url = SKIT_Config::cache_url();
+		if ( '' === $cache_url ) {
+			return '';
+		}
+		$path = wp_parse_url( $cache_url, PHP_URL_PATH );
 
-		return $content_url . '/cache/speed-kit';
+		return $path ? untrailingslashit( $path ) : '';
 	}
 }

@@ -26,6 +26,7 @@ class SKIT_Activator {
 		if ( false === get_option( SKIT_OPTION_KEY ) ) {
 			add_option( SKIT_OPTION_KEY, SKIT_Config::defaults() );
 		}
+		update_option( 'skit_version', SKIT_VERSION );
 
 		wp_mkdir_p( SKIT_CACHE_DIR );
 		self::protect_cache_dir();
@@ -77,7 +78,56 @@ class SKIT_Activator {
 			}
 		}
 
-		return (bool) copy( SKIT_PLUGIN_DIR . 'includes/advanced-cache.php', $target );
+		// Atomic replace: wp-settings.php include()s this file on every
+		// request, a half-copied file would be a fatal parse error.
+		$tmp = $target . '.' . uniqid( 'tmp', true );
+		if ( ! @copy( SKIT_PLUGIN_DIR . 'includes/advanced-cache.php', $tmp ) || ! @rename( $tmp, $target ) ) { // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+			@unlink( $tmp ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+			return false;
+		}
+		SKIT_Config::opcache_invalidate( $target );
+
+		return true;
+	}
+
+	/**
+	 * True if wp-content/advanced-cache.php exists and belongs to SpeedKit.
+	 *
+	 * @return bool
+	 */
+	public static function dropin_is_ours() {
+		$target = WP_CONTENT_DIR . '/advanced-cache.php';
+		if ( ! file_exists( $target ) ) {
+			return false;
+		}
+		$head = (string) file_get_contents( $target, false, null, 0, 200 ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+
+		return false !== strpos( $head, 'SpeedKit' );
+	}
+
+	/**
+	 * Runs once after the plugin files are updated (e.g. 1.2.0 -> 1.3.0):
+	 * refreshes the per-host config, the drop-in (only if it is ours) and the
+	 * .htaccess block (only if it is already there), so that a conflict
+	 * state left at activation is never overridden.
+	 */
+	public static function maybe_upgrade() {
+		if ( SKIT_VERSION === get_option( 'skit_version' ) ) {
+			return;
+		}
+		update_option( 'skit_version', SKIT_VERSION );
+
+		if ( defined( 'WP_ROCKET_VERSION' ) ) {
+			return;
+		}
+
+		SKIT_Config::write_config_file();
+		if ( self::dropin_is_ours() ) {
+			self::install_dropin();
+		}
+		if ( SKIT_Htaccess::has_rules() ) {
+			SKIT_Htaccess::write_rules( SKIT_Config::get_settings() );
+		}
 	}
 
 	/**
@@ -106,29 +156,80 @@ class SKIT_Activator {
 			return false;
 		}
 
-		$content = (string) file_get_contents( $file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
-		if ( '' === $content ) {
+		$original = (string) file_get_contents( $file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		if ( '' === $original ) {
 			return false;
 		}
 
-		$define  = "define( 'WP_CACHE', " . ( $enable ? 'true' : 'false' ) . " ); // Added by SpeedKit";
-		$pattern = "/^[\t ]*define\\(\\s*['\"]WP_CACHE['\"]\\s*,\\s*[^)]*\\)\\s*;[^\n]*/m";
+		$ours = "define( 'WP_CACHE', true ); // Added by SpeedKit";
+		// Any active (not commented out) WP_CACHE define, without its line ending.
+		$any_define = "/^[\t ]*define\\(\\s*['\"]WP_CACHE['\"]\\s*,\\s*[^)]*\\)\\s*;[^\r\n]*/m";
+		// Only the lines written by SpeedKit (including the "false" line that
+		// version 1.2.0 left behind on deactivation).
+		$our_define = "/^[\t ]*define\\(\\s*['\"]WP_CACHE['\"][^\r\n]*Added by SpeedKit[^\r\n]*/m";
+		$content    = $original;
 
-		if ( preg_match( $pattern, $content ) ) {
-			$content = (string) preg_replace( $pattern, $define, $content, 1 );
-		} elseif ( $enable ) {
-			// Inserisce subito dopo il primo tag di apertura PHP (strpos e
-			// non regex ancorata: tollera BOM o whitespace iniziali).
-			$pos = strpos( $content, '<?php' );
-			if ( false === $pos ) {
-				return false;
+		if ( $enable ) {
+			if ( preg_match( $any_define, $content, $match ) ) {
+				$is_ours = false !== strpos( $match[0], 'Added by SpeedKit' );
+				if ( ! $is_ours && preg_match( '/,\s*(?:true|1)\s*\)/i', $match[0] ) ) {
+					// Already enabled by the site owner or the host: leave it alone.
+					return true;
+				}
+				if ( ! $is_ours ) {
+					// Remember the original line to restore it on deactivation.
+					update_option( 'skit_wp_cache_original', trim( $match[0] ), false );
+				}
+				$content = (string) preg_replace_callback(
+					$any_define,
+					function () use ( $ours ) {
+						return $ours;
+					},
+					$content,
+					1
+				);
+			} else {
+				// Right after the first PHP open tag (strpos rather than an
+				// anchored regex: tolerates a BOM or leading whitespace). The
+				// define always gets its own line, otherwise the rest of the
+				// original first line would end up inside our "//" comment.
+				$pos = strpos( $content, '<?php' );
+				if ( false === $pos ) {
+					return false;
+				}
+				$eol    = false !== strpos( $content, "\r\n" ) ? "\r\n" : "\n";
+				$after  = substr( $content, $pos + 5, strlen( $eol ) );
+				$insert = '<?php' . $eol . $ours . ( $after === $eol ? '' : $eol );
+				$content = substr_replace( $content, $insert, $pos, 5 );
 			}
-			$content = substr_replace( $content, "<?php\n" . $define, $pos, 5 );
 		} else {
+			$restore = (string) get_option( 'skit_wp_cache_original', '' );
+			if ( '' !== $restore ) {
+				$content = (string) preg_replace_callback(
+					$our_define,
+					function () use ( $restore ) {
+						return $restore;
+					},
+					$content,
+					1
+				);
+			}
+			// Drop our remaining line(s) together with their line ending.
+			$content = (string) preg_replace( "/^[\t ]*define\\(\\s*['\"]WP_CACHE['\"][^\r\n]*Added by SpeedKit[^\r\n]*(?:\r\n|\n)?/m", '', $content );
+			delete_option( 'skit_wp_cache_original' );
+		}
+
+		if ( $content === $original ) {
 			return true;
 		}
 
-		return false !== file_put_contents( $file, $content, LOCK_EX ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+		// Sanity check before touching the file that keeps the site alive:
+		// at most one define added or removed, PHP open tag still present.
+		if ( false === strpos( $content, '<?php' ) || abs( substr_count( $content, 'define' ) - substr_count( $original, 'define' ) ) > 1 ) {
+			return false;
+		}
+
+		return SKIT_Config::safe_write( $file, $content, $original );
 	}
 
 	/**

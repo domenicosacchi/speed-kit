@@ -20,6 +20,23 @@ class SKIT_Purge {
 	 */
 	private $settings;
 
+	/**
+	 * Permalinks captured before a post update/trash, keyed by post ID.
+	 * After unpublishing, trashing or a slug change get_permalink() no longer
+	 * returns the URL that is in the cache.
+	 *
+	 * @var array<int,string>
+	 */
+	private $old_urls = array();
+
+	/**
+	 * URLs already purged in this request (save_post and
+	 * transition_post_status both fire on publish).
+	 *
+	 * @var array<string,bool>
+	 */
+	private $purged = array();
+
 	public function __construct( array $settings ) {
 		$this->settings = $settings;
 	}
@@ -29,6 +46,8 @@ class SKIT_Purge {
 	 */
 	public function init() {
 		// Contenuti.
+		add_action( 'pre_post_update', array( $this, 'remember_old_url' ) );
+		add_action( 'wp_trash_post', array( $this, 'remember_old_url' ) );
 		add_action( 'save_post', array( $this, 'on_save_post' ), 10, 2 );
 		add_action( 'deleted_post', array( $this, 'on_delete_post' ), 10, 2 );
 		add_action( 'trashed_post', array( $this, 'on_trashed_post' ) );
@@ -40,7 +59,8 @@ class SKIT_Purge {
 
 		// Termini / tassonomie.
 		add_action( 'edited_term', array( $this, 'on_edited_term' ), 10, 3 );
-		add_action( 'delete_term', array( $this, 'on_edited_term' ), 10, 3 );
+		// Before deletion: afterwards get_term_link() fails.
+		add_action( 'pre_delete_term', array( $this, 'on_pre_delete_term' ), 10, 2 );
 
 		// Cambi globali: tutto il dominio.
 		add_action( 'switch_theme', array( $this, 'clean_domain' ) );
@@ -57,6 +77,38 @@ class SKIT_Purge {
 	/* ---------------------------------------------------------------------
 	 * Handler eventi
 	 * ------------------------------------------------------------------ */
+
+	/**
+	 * Stores the current permalink of a published post right before it is
+	 * updated or trashed.
+	 *
+	 * @param int $post_id Post ID.
+	 */
+	public function remember_old_url( $post_id ) {
+		// Keep the first capture: wp_trash_post() calls wp_update_post(), and by
+		// then the slug may already carry the "__trashed" suffix.
+		if ( isset( $this->old_urls[ (int) $post_id ] ) ) {
+			return;
+		}
+		$post = get_post( $post_id );
+		if ( ! $post instanceof WP_Post || 'publish' !== $post->post_status || ! is_post_type_viewable( $post->post_type ) ) {
+			return;
+		}
+		$url = get_permalink( $post );
+		if ( $url ) {
+			$this->old_urls[ $post->ID ] = $url;
+		}
+	}
+
+	/**
+	 * Term about to be deleted: purge its archive while the link still resolves.
+	 *
+	 * @param int    $term_id  Term ID.
+	 * @param string $taxonomy Taxonomy.
+	 */
+	public function on_pre_delete_term( $term_id, $taxonomy ) {
+		$this->on_edited_term( $term_id, 0, $taxonomy );
+	}
 
 	/**
 	 * Post salvato/aggiornato.
@@ -252,11 +304,28 @@ class SKIT_Purge {
 		 * @param string[] $urls
 		 * @param WP_Post  $post
 		 */
-		$urls = apply_filters( 'skit_clean_post_urls', array_unique( array_filter( $urls ) ), $post );
+		// URL the post had before this update (unpublish, trash, slug change).
+		if ( isset( $this->old_urls[ $post->ID ] ) ) {
+			$urls[] = $this->old_urls[ $post->ID ];
+		}
 
+		$urls = apply_filters( 'skit_clean_post_urls', array_values( array_unique( array_filter( $urls ) ) ), $post );
+
+		$new = 0;
 		foreach ( $urls as $url ) {
+			// Same post version + same URL = already done in this request. A
+			// later update (bulk import, WP-CLI) changes post_modified.
+			$key = $post->ID . '|' . $post->post_modified_gmt . '|' . $post->post_status . '|' . $url;
+			if ( isset( $this->purged[ $key ] ) ) {
+				continue;
+			}
+			$this->purged[ $key ] = true;
+			++$new;
 			// true = include le sottopagine di paginazione (/page/2/...).
 			$this->clean_url( (string) $url, true );
+		}
+		if ( 0 === $new ) {
+			return;
 		}
 
 		/**

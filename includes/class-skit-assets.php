@@ -125,6 +125,12 @@ class SKIT_Assets {
 	 * @return string
 	 */
 	private function minified_css_url( $url ) {
+		// A cache directory outside wp-content cannot be linked from the page.
+		$cache_url = SKIT_Config::cache_url();
+		if ( '' === $cache_url ) {
+			return '';
+		}
+
 		$path = $this->url_to_local_path( $url );
 		if ( '' === $path || false !== strpos( $path, '.min.css' ) ) {
 			return '';
@@ -169,7 +175,8 @@ class SKIT_Assets {
 			@rename( $tmp, $file ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 		}
 
-		return content_url( 'cache/speed-kit/' . self::ASSETS_DIR . '/' . $key );
+		// Follows a custom SKIT_CACHE_DIR (checked as not web-accessible below).
+		return trailingslashit( $cache_url ) . self::ASSETS_DIR . '/' . $key;
 	}
 
 	/**
@@ -199,7 +206,10 @@ class SKIT_Assets {
 		$css = (string) preg_replace( '#/\*(?!!).*?\*/#s', '', $css );
 		// Whitespace.
 		$css = (string) preg_replace( '/\s+/', ' ', $css );
-		$css = (string) preg_replace( '/\s*([{};:,>~+])\s*/', '$1', $css );
+		// Not around "+" / "-" (calc() requires the spaces) and not before ":"
+		// (".a :hover" and ".a:hover" are different selectors).
+		$css = (string) preg_replace( '/\s*([{};,>~])\s*/', '$1', $css );
+		$css = (string) preg_replace( '/:\s+/', ':', $css );
 		$css = str_replace( ';}', '}', $css );
 
 		return trim( $css );

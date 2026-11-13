@@ -36,6 +36,8 @@ class SKIT_Admin {
 		add_action( 'admin_post_skit_db_cleanup', array( $this, 'handle_db_cleanup' ) );
 
 		if ( is_admin() ) {
+			// One-off refresh of drop-in, config and .htaccess after an update.
+			add_action( 'admin_init', array( 'SKIT_Activator', 'maybe_upgrade' ) );
 			add_action( 'admin_menu', array( $this, 'menu' ) );
 			add_action( 'admin_notices', array( $this, 'notices' ) );
 			add_filter( 'plugin_action_links_' . SKIT_PLUGIN_BASENAME, array( $this, 'action_links' ) );
@@ -137,6 +139,11 @@ class SKIT_Admin {
 
 	public function handle_db_cleanup() {
 		$this->verify_action( 'skit_db_cleanup' );
+		// Destructive action: POST only, with an explicit confirmation checkbox
+		// checked server-side (the JS confirm() alone can be bypassed).
+		if ( ! isset( $_SERVER['REQUEST_METHOD'] ) || 'POST' !== $_SERVER['REQUEST_METHOD'] || empty( $_POST['skit_confirm_db'] ) ) {
+			$this->redirect_back( 'db_not_confirmed' );
+		}
 		$results = $this->core->database->cleanup();
 		set_transient( 'skit_db_cleanup_result', $results, 5 * MINUTE_IN_SECONDS );
 		$this->redirect_back( 'db_cleaned' );
@@ -192,6 +199,12 @@ class SKIT_Admin {
 			echo '<div class="notice notice-error"><p><strong>SpeedKit:</strong> è presente un advanced-cache.php di un altro plugin di cache. Rimuovilo e usa "Reinstalla componenti" nelle impostazioni di SpeedKit.</p></div>';
 		}
 
+		// Other page cache plugins active at the same time.
+		$others = $this->active_cache_plugins();
+		if ( $others && 'wp-rocket' !== $conflict ) {
+			echo '<div class="notice notice-error"><p><strong>SpeedKit:</strong> sono attivi altri plugin di cache (' . esc_html( implode( ', ', $others ) ) . '). Due page cache insieme si sovrascrivono a vicenda: disattivane una.</p></div>';
+		}
+
 		// Stato drop-in: assente o versione diversa.
 		if ( ! $conflict && ! empty( $this->core->settings['cache_enabled'] ) ) {
 			if ( ! defined( 'SKIT_ADVANCED_CACHE' ) ) {
@@ -228,10 +241,55 @@ class SKIT_Admin {
 				delete_transient( 'skit_db_cleanup_result' );
 			}
 			$key = sanitize_key( wp_unslash( $_GET['skit_msg'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-			if ( isset( $messages[ $key ] ) ) {
+			if ( 'db_not_confirmed' === $key ) {
+				echo '<div class="notice notice-warning is-dismissible"><p><strong>SpeedKit:</strong> pulizia database non eseguita: spunta la casella di conferma.</p></div>';
+			} elseif ( isset( $messages[ $key ] ) ) {
 				echo '<div class="notice notice-success is-dismissible"><p><strong>SpeedKit:</strong> ' . esc_html( $messages[ $key ] ) . '</p></div>';
 			}
 		}
+	}
+
+	/**
+	 * Names of known page cache plugins that are active right now.
+	 *
+	 * @return string[]
+	 */
+	private function active_cache_plugins() {
+		if ( ! function_exists( 'is_plugin_active' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/plugin.php';
+		}
+
+		/**
+		 * Filters the plugin basenames treated as conflicting page caches.
+		 *
+		 * @param array<string,string> $plugins Basename => display name.
+		 */
+		$known = (array) apply_filters(
+			'skit_conflicting_plugins',
+			array(
+				'w3-total-cache/w3-total-cache.php'        => 'W3 Total Cache',
+				'wp-super-cache/wp-cache.php'              => 'WP Super Cache',
+				'litespeed-cache/litespeed-cache.php'      => 'LiteSpeed Cache',
+				'wp-fastest-cache/wpFastestCache.php'      => 'WP Fastest Cache',
+				'breeze/breeze.php'                        => 'Breeze',
+				'cache-enabler/cache-enabler.php'          => 'Cache Enabler',
+				'comet-cache/comet-cache.php'              => 'Comet Cache',
+				'hummingbird-performance/wp-hummingbird.php' => 'Hummingbird',
+				'sg-cachepress/sg-cachepress.php'          => 'Speed Optimizer (SiteGround)',
+				'wp-optimize/wp-optimize.php'              => 'WP-Optimize',
+				'swift-performance-lite/performance.php'   => 'Swift Performance Lite',
+			)
+		);
+
+		// WP Rocket is not on wordpress.org: detected by its constant.
+		$active = defined( 'WP_ROCKET_VERSION' ) ? array( 'WP Rocket' ) : array();
+		foreach ( $known as $basename => $name ) {
+			if ( is_plugin_active( (string) $basename ) ) {
+				$active[] = (string) $name;
+			}
+		}
+
+		return $active;
 	}
 
 	/**
@@ -271,12 +329,15 @@ class SKIT_Admin {
 		$out['lazyload_skip_first'] = isset( $in['lazyload_skip_first'] ) ? min( 10, max( 0, (int) $in['lazyload_skip_first'] ) ) : 2;
 		$out['cdn_host']            = isset( $in['cdn_host'] ) ? preg_replace( '#^(?:https?:)?//|[^a-z0-9.\-]#i', '', trim( (string) $in['cdn_host'] ) ) : '';
 
-		foreach ( array( 'exclude_uris', 'defer_js_exclude', 'delay_js_exclude', 'dns_prefetch', 'ignored_query_params', 'minify_css_exclude', 'preload_fonts' ) as $list ) {
+		foreach ( array( 'exclude_uris', 'defer_js_exclude', 'delay_js_exclude', 'dns_prefetch', 'ignored_query_params', 'minify_css_exclude', 'preload_fonts', 'skip_cookies_extra' ) as $list ) {
 			$out[ $list ] = $this->sanitize_lines( isset( $in[ $list ] ) ? (string) $in[ $list ] : '' );
 		}
 
+		// Cookie names end up in .htaccess: strict character set.
+		$out['skip_cookies_extra'] = array_values( array_filter( array_map( array( 'SKIT_Config', 'sanitize_cookie_name' ), $out['skip_cookies_extra'] ) ) );
+
 		// Le regex utente non valide vengono scartate (stessa logica di WP Rocket).
-		foreach ( array( 'exclude_uris', 'defer_js_exclude' ) as $regex_list ) {
+		foreach ( array( 'exclude_uris', 'defer_js_exclude', 'minify_css_exclude' ) as $regex_list ) {
 			$out[ $regex_list ] = array_values(
 				array_filter(
 					$out[ $regex_list ],
@@ -382,6 +443,13 @@ class SKIT_Admin {
 						<td>
 							<textarea name="ignored_query_params" rows="3" class="large-text code" placeholder="Vuoto = lista predefinita (utm_*, fbclid, gclid...)"><?php echo esc_textarea( implode( "\n", (array) $s['ignored_query_params'] ) ); ?></textarea>
 							<p class="description">URL con solo questi parametri ricevono la cache della pagina base. Vuoto = lista predefinita.</p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">Cookie che escludono dalla cache</th>
+						<td>
+							<textarea name="skip_cookies_extra" rows="3" class="large-text code" placeholder="nome_cookie_"><?php echo esc_textarea( implode( "\n", (array) $s['skip_cookies_extra'] ) ); ?></textarea>
+							<p class="description">Un prefisso di nome cookie per riga, in aggiunta a quelli predefiniti (<code><?php echo esc_html( implode( ', ', SKIT_Config::default_skip_cookies() ) ); ?></code>). Chi ha uno di questi cookie non riceve né genera pagine in cache.</p>
 						</td>
 					</tr>
 				</table>
@@ -547,8 +615,13 @@ class SKIT_Admin {
 				<a class="button" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=skit_purge_all' ), 'skit_purge_all' ) ); ?>">Svuota tutta la cache</a>
 				<a class="button" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=skit_preload' ), 'skit_preload' ) ); ?>">Avvia preload</a>
 				<a class="button" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=skit_reinstall' ), 'skit_reinstall' ) ); ?>">Reinstalla componenti</a>
-				<a class="button" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=skit_db_cleanup' ), 'skit_db_cleanup' ) ); ?>" onclick="return confirm('Eliminare definitivamente revisioni, cestino, spam e transient scaduti?');">Pulisci database ora</a>
 			</p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" onsubmit="return confirm('Eliminare definitivamente revisioni, cestino, spam e transient scaduti?');">
+				<input type="hidden" name="action" value="skit_db_cleanup">
+				<?php wp_nonce_field( 'skit_db_cleanup' ); ?>
+				<label><input type="checkbox" name="skit_confirm_db" value="1" required> Ho capito che revisioni, bozze automatiche vecchie, cestino, spam e transient scaduti vengono eliminati definitivamente.</label>
+				<?php submit_button( 'Pulisci database ora', 'secondary', 'submit', false ); ?>
+			</form>
 			<p class="description">"Reinstalla componenti" riscrive drop-in advanced-cache.php, WP_CACHE, regole .htaccess e file di configurazione.</p>
 		</div>
 		<?php

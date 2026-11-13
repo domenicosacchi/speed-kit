@@ -60,7 +60,14 @@ class SKIT_Database {
 		$results['revisioni'] = count( $ids );
 
 		// Bozze automatiche.
-		$ids = $wpdb->get_col( "SELECT ID FROM {$wpdb->posts} WHERE post_status = 'auto-draft'" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		// Only auto-drafts older than 7 days, like core's wp_delete_auto_drafts():
+		// a fresh auto-draft is a post someone is writing right now.
+		$ids = $wpdb->get_col( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			$wpdb->prepare(
+				"SELECT ID FROM {$wpdb->posts} WHERE post_status = 'auto-draft' AND post_date < %s",
+				wp_date( 'Y-m-d H:i:s', time() - 7 * DAY_IN_SECONDS )
+			)
+		);
 		foreach ( $ids as $id ) {
 			wp_delete_post( (int) $id, true );
 		}

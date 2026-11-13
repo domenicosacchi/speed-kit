@@ -53,8 +53,9 @@ var seen=new Set(),t;
 function ok(a){
 if(!a||!a.href||a.origin!==location.origin){return false;}
 if(seen.has(a.href)||a.href===location.href){return false;}
+if(a.search){return false;}
 if(a.hash&&a.pathname===location.pathname){return false;}
-if(a.hasAttribute('download')||a.getAttribute('rel')==='nofollow'){return false;}
+if(a.hasAttribute('download')||a.hasAttribute('data-no-prefetch')||/(^|\s)nofollow(\s|$)/i.test(a.getAttribute('rel')||'')){return false;}
 if(/wp-admin|wp-login|logout|\.(?:jpe?g|png|gif|webp|pdf|zip|mp4|xml)$/i.test(a.href)){return false;}
 return true;
 }

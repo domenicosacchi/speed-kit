@@ -75,6 +75,13 @@ class SKIT_Page_Cache {
 			return false;
 		}
 
+		// Only cache requests addressed to the site's own host. The Host header
+		// is client-controlled: without this check arbitrary Host values would
+		// create arbitrary cache directories (disk fill).
+		if ( ! $this->request_host_matches_site() ) {
+			return false;
+		}
+
 		// Utenti loggati: mai in cache. La pagina di un utente loggato
 		// (admin bar, nonce, contenuti personali) finirebbe nel file
 		// condiviso servito agli anonimi.
@@ -123,6 +130,7 @@ class SKIT_Page_Cache {
 		$config = array(
 			'exclude_uris'         => (array) $this->settings['exclude_uris'],
 			'ignored_query_params' => (array) $this->settings['ignored_query_params'],
+			'skip_cookies'         => SKIT_Config::skip_cookies( $this->settings ),
 			'cache_enabled'        => 1,
 		);
 
@@ -140,6 +148,22 @@ class SKIT_Page_Cache {
 		}
 
 		return true;
+	}
+
+	/**
+	 * True if the request Host header (normalized like the drop-in does)
+	 * is the host of home_url().
+	 *
+	 * @return bool
+	 */
+	private function request_host_matches_site() {
+		if ( empty( $_SERVER['HTTP_HOST'] ) ) {
+			return false;
+		}
+		$host = strtolower( (string) preg_replace( '/[^a-z0-9.\-:]/i', '', (string) $_SERVER['HTTP_HOST'] ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		$host = str_replace( ':', '-', $host );
+
+		return '' !== $host && SKIT_Config::current_host() === $host;
 	}
 
 	/**
@@ -166,6 +190,11 @@ class SKIT_Page_Cache {
 		// Solo contenuto HTML.
 		foreach ( headers_list() as $header ) {
 			if ( 0 === stripos( $header, 'Content-Type:' ) && false === stripos( $header, 'text/html' ) ) {
+				return $buffer;
+			}
+			// Respect responses marked as uncacheable by WordPress
+			// (nocache_headers()) or by other plugins.
+			if ( 0 === stripos( $header, 'Cache-Control:' ) && preg_match( '/no-store|no-cache|private/i', $header ) ) {
 				return $buffer;
 			}
 		}

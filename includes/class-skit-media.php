@@ -102,7 +102,7 @@ class SKIT_Media {
 		 */
 		$exclusions = (array) apply_filters(
 			'skit_lazyload_exclusions',
-			array( 'skip-lazy', 'data-skip-lazy', 'no-lazy', 'eager' )
+			array( 'skip-lazy', 'data-skip-lazy', 'no-lazy', 'eager', 'fetchpriority="high"', "fetchpriority='high'" )
 		);
 
 		return (string) preg_replace_callback(
@@ -216,7 +216,9 @@ var f=document.createElement('iframe');
 f.setAttribute('allow','accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture');
 f.setAttribute('allowfullscreen','');
 f.src='https://www.youtube-nocookie.com/embed/'+id+'?autoplay=1'+(q?'&'+q:'');
-b.innerHTML='';b.appendChild(f);
+f.title=b.getAttribute('aria-label')||'';
+var w=document.createElement('div');w.className='skit-yt';w.appendChild(f);
+b.parentNode.replaceChild(w,b);
 });
 JS;
 

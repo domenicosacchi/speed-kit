@@ -25,6 +25,7 @@ class SKIT_Config {
 			'cache_lifespan'        => 10 * HOUR_IN_SECONDS, // 0 = mai, altrimenti secondi.
 			'exclude_uris'          => array(), // Regex (una per riga in admin) di URI esclusi.
 			'ignored_query_params'  => array(), // Vuoto = usa i default del drop-in.
+			'skip_cookies_extra'    => array(), // Extra cookie name prefixes that bypass the cache.
 
 			// Regole .htaccess.
 			'htaccess_browser_cache' => 1,      // Expires/Cache-Control per asset statici.
@@ -100,6 +101,7 @@ class SKIT_Config {
 			'cache_lifespan'        => (int) $settings['cache_lifespan'],
 			'exclude_uris'          => array_values( (array) $settings['exclude_uris'] ),
 			'ignored_query_params'  => array_values( (array) $settings['ignored_query_params'] ),
+			'skip_cookies'          => self::skip_cookies( $settings ),
 		);
 
 		$content  = "<?php\n";
@@ -110,7 +112,15 @@ class SKIT_Config {
 
 		$file = SKIT_CONFIG_DIR . $host . '.php';
 
-		$written = (bool) file_put_contents( $file, $content, LOCK_EX ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+		// Atomic write (temp file + rename): the drop-in include()s this file
+		// on every request and would hit a parse error on a half-written file.
+		$tmp     = $file . '.' . uniqid( 'tmp', true );
+		$written = false !== file_put_contents( $tmp, $content ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+		$written = $written && @rename( $tmp, $file ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		if ( ! $written ) {
+			@unlink( $tmp ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		}
+		self::opcache_invalidate( $file );
 
 		// Protegge la cartella da listing.
 		$index = SKIT_CONFIG_DIR . 'index.php';
@@ -119,6 +129,116 @@ class SKIT_Config {
 		}
 
 		return $written;
+	}
+
+	/**
+	 * Cookie name prefixes that bypass the page cache (both when serving and
+	 * when saving). Must stay in sync with the drop-in fallback list.
+	 *
+	 * @return string[]
+	 */
+	public static function default_skip_cookies() {
+		return array( 'wordpress_logged_in_', 'wordpress_sec_', 'wp-postpass_', 'comment_author_', 'woocommerce_cart_hash', 'woocommerce_items_in_cart', 'wp_woocommerce_session_', 'edd_items_in_cart' );
+	}
+
+	/**
+	 * Full list of cache-bypass cookie prefixes: defaults, the ones added in
+	 * the settings and the `skit_skip_cookies` filter. Names are restricted
+	 * to a safe character set because they are also written to .htaccess.
+	 *
+	 * @param array $settings Plugin settings.
+	 * @return string[]
+	 */
+	public static function skip_cookies( array $settings ) {
+		$extra   = isset( $settings['skip_cookies_extra'] ) ? (array) $settings['skip_cookies_extra'] : array();
+		$cookies = array_merge( self::default_skip_cookies(), $extra );
+
+		/**
+		 * Filters the cookie name prefixes that bypass the page cache.
+		 *
+		 * Use it for consent or session cookies when the HTML differs for
+		 * visitors that carry them (e.g. a consent banner rendered server-side).
+		 *
+		 * @param string[] $cookies Cookie name prefixes.
+		 */
+		$cookies = (array) apply_filters( 'skit_skip_cookies', $cookies );
+
+		$clean = array();
+		foreach ( $cookies as $cookie ) {
+			$cookie = self::sanitize_cookie_name( $cookie );
+			if ( '' !== $cookie ) {
+				$clean[] = $cookie;
+			}
+		}
+
+		return array_values( array_unique( $clean ) );
+	}
+
+	/**
+	 * Keeps only characters that are safe both in a PHP prefix match and in
+	 * an Apache regex.
+	 *
+	 * @param string $name Cookie name or prefix.
+	 * @return string
+	 */
+	public static function sanitize_cookie_name( $name ) {
+		return (string) preg_replace( '/[^A-Za-z0-9_.\-]/', '', (string) $name );
+	}
+
+	/**
+	 * Writes a critical site file (wp-config.php, .htaccess) in place, then
+	 * reads it back; on any mismatch the original content is written back.
+	 * In-place writing (not temp + rename) keeps owner and permissions.
+	 *
+	 * @param string $file     Absolute path.
+	 * @param string $content  New content.
+	 * @param string $original Content to restore on failure.
+	 * @return bool True if the new content is in place.
+	 */
+	public static function safe_write( $file, $content, $original ) {
+		$bytes = @file_put_contents( $file, $content, LOCK_EX ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged, WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+		clearstatcache( true, $file );
+		$check = @file_get_contents( $file ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged, WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+
+		if ( strlen( $content ) !== $bytes || $check !== $content ) {
+			// Rollback.
+			@file_put_contents( $file, $original, LOCK_EX ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged, WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+			clearstatcache( true, $file );
+			return false;
+		}
+
+		self::opcache_invalidate( $file );
+
+		return true;
+	}
+
+	/**
+	 * Invalidates a PHP file in OPcache so that changes are picked up even
+	 * with opcache.validate_timestamps=0.
+	 *
+	 * @param string $file Absolute path.
+	 */
+	public static function opcache_invalidate( $file ) {
+		// Silenced: opcache.restrict_api may forbid the call (it then warns).
+		if ( function_exists( 'opcache_invalidate' ) ) {
+			@opcache_invalidate( $file, true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		}
+	}
+
+	/**
+	 * Public URL of the cache directory, or '' when SKIT_CACHE_DIR is not
+	 * inside WP_CONTENT_DIR (then it cannot be served over HTTP).
+	 *
+	 * @return string
+	 */
+	public static function cache_url() {
+		$content = trailingslashit( wp_normalize_path( WP_CONTENT_DIR ) );
+		$cache   = trailingslashit( wp_normalize_path( SKIT_CACHE_DIR ) );
+		if ( 0 !== strpos( $cache, $content ) ) {
+			return '';
+		}
+
+		return content_url( substr( $cache, strlen( $content ) ) );
 	}
 
 	/**
