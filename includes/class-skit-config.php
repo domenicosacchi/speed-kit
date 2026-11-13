@@ -58,6 +58,9 @@ class SKIT_Config {
 			'cdn_enabled'           => 0,
 			'cdn_host'              => '',
 
+			// Reverse proxy.
+			'varnish_mode'          => 'auto',  // auto | cloudways | generic | off.
+
 			// Database.
 			'db_auto_cleanup'       => 0,       // Pulizia settimanale automatica.
 

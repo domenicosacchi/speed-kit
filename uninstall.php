@@ -42,5 +42,6 @@ delete_option( SKIT_OPTION_KEY );
 delete_option( SKIT_Preload::QUEUE_OPTION );
 delete_option( 'skit_version' );
 delete_option( 'skit_wp_cache_original' );
+delete_option( 'skit_varnish_env' );
 delete_transient( 'skit_activation_conflict' );
 delete_transient( 'skit_db_cleanup_result' );

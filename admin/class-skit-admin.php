@@ -348,6 +348,8 @@ class SKIT_Admin {
 			);
 		}
 
+		$out['varnish_mode'] = isset( $in['varnish_mode'] ) && in_array( $in['varnish_mode'], array( 'auto', 'cloudways', 'generic', 'off' ), true ) ? $in['varnish_mode'] : 'auto';
+
 		$out['preload_sitemap'] = isset( $in['preload_sitemap'] ) ? esc_url_raw( trim( (string) $in['preload_sitemap'] ) ) : '';
 
 		update_option( SKIT_OPTION_KEY, $out );
@@ -575,6 +577,36 @@ class SKIT_Admin {
 								<input type="text" name="cdn_host" value="<?php echo esc_attr( $s['cdn_host'] ); ?>" class="regular-text code" placeholder="cdn.tuosito.it">
 							</p>
 							<p class="description">Solo l'hostname del CDN/pull-zone. Vengono riscritti gli URL sotto <code>/wp-content/</code> e <code>/wp-includes/</code>.</p>
+						</td>
+					</tr>
+				</table>
+
+				<h2 class="title"><?php esc_html_e( 'Reverse proxy (Varnish)', 'speed-kit' ); ?></h2>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><label for="skit-varnish-mode"><?php esc_html_e( 'Varnish purge', 'speed-kit' ); ?></label></th>
+						<td>
+							<?php
+							$varnish_env    = (string) get_option( 'skit_varnish_env', 'none' );
+							$varnish_labels = array(
+								'cloudways' => __( 'Cloudways Varnish', 'speed-kit' ),
+								'generic'   => __( 'Varnish', 'speed-kit' ),
+								'none'      => __( 'none', 'speed-kit' ),
+							);
+							$varnish_modes  = array(
+								/* translators: %s: reverse proxy detected on the server, e.g. "Cloudways Varnish" or "none". */
+								'auto'      => sprintf( __( 'Automatic (detected: %s)', 'speed-kit' ), isset( $varnish_labels[ $varnish_env ] ) ? $varnish_labels[ $varnish_env ] : $varnish_labels['none'] ),
+								'cloudways' => __( 'Cloudways (URLPURGE / PURGE to 127.0.0.1)', 'speed-kit' ),
+								'generic'   => __( 'Generic Varnish (PURGE with X-Purge-Method)', 'speed-kit' ),
+								'off'       => __( 'Off', 'speed-kit' ),
+							);
+							?>
+							<select name="varnish_mode" id="skit-varnish-mode">
+								<?php foreach ( $varnish_modes as $value => $label ) : ?>
+									<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $s['varnish_mode'], $value ); ?>><?php echo esc_html( $label ); ?></option>
+								<?php endforeach; ?>
+							</select>
+							<p class="description"><?php esc_html_e( 'When content changes SpeedKit also purges the affected URLs from Varnish. Automatic mode detects Varnish from the headers of your admin requests and sends nothing when no Varnish is found. The target IP can be changed with the SKIT_VARNISH_IP constant.', 'speed-kit' ); ?></p>
 						</td>
 					</tr>
 				</table>

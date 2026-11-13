@@ -72,6 +72,9 @@ class SKIT_Purge {
 
 		// Garbage collector file scaduti.
 		add_action( 'skit_cache_gc', array( $this, 'garbage_collect' ) );
+
+		// Reverse proxy detection (admin requests only).
+		add_action( 'admin_init', array( __CLASS__, 'detect_varnish_env' ) );
 	}
 
 	/* ---------------------------------------------------------------------
@@ -236,7 +239,7 @@ class SKIT_Purge {
 			return;
 		}
 		self::delete_dir( SKIT_CACHE_DIR . $host );
-		$this->varnish_purge( home_url( '/' ), true );
+		$this->varnish_purge( home_url( '/' ), 'all' );
 
 		/**
 		 * Scatta dopo un purge completo (usato ad es. per avviare il preload).
@@ -298,17 +301,17 @@ class SKIT_Purge {
 			$urls[] = get_month_link( $year, $month );
 		}
 
+		// URL the post had before this update (unpublish, trash, slug change).
+		if ( isset( $this->old_urls[ $post->ID ] ) ) {
+			$urls[] = $this->old_urls[ $post->ID ];
+		}
+
 		/**
 		 * Filtra gli URL da ripulire quando un post cambia.
 		 *
 		 * @param string[] $urls
 		 * @param WP_Post  $post
 		 */
-		// URL the post had before this update (unpublish, trash, slug change).
-		if ( isset( $this->old_urls[ $post->ID ] ) ) {
-			$urls[] = $this->old_urls[ $post->ID ];
-		}
-
 		$urls = apply_filters( 'skit_clean_post_urls', array_values( array_unique( array_filter( $urls ) ) ), $post );
 
 		$new = 0;
@@ -344,9 +347,20 @@ class SKIT_Purge {
 	 * @param bool   $with_pagination True per eliminare anche /page/N/.
 	 */
 	public function clean_url( $url, $with_pagination = false ) {
+		$pagination_base = 'page';
+		global $wp_rewrite;
+		if ( $wp_rewrite instanceof WP_Rewrite && ! empty( $wp_rewrite->pagination_base ) ) {
+			$pagination_base = $wp_rewrite->pagination_base;
+		}
+
 		// Prima di tutto il proxy (Varnish): va invalidato anche quando
-		// la cache su file non ha nulla per questo URL.
-		$this->varnish_purge( $url, $with_pagination );
+		// la cache su file non ha nulla per questo URL. Pagination is a
+		// separate, narrow regex purge: a regex on the URL itself would flush
+		// the whole site when the URL is the home page.
+		$this->varnish_purge( $url, 'url' );
+		if ( $with_pagination ) {
+			$this->varnish_purge( trailingslashit( $url ) . $pagination_base . '/', 'subtree' );
+		}
 
 		$dir = self::url_to_cache_dir( $url );
 		if ( '' === $dir || ! is_dir( $dir ) ) {
@@ -361,57 +375,152 @@ class SKIT_Purge {
 		}
 
 		if ( $with_pagination ) {
-			$pagination_base = 'page';
-			global $wp_rewrite;
-			if ( $wp_rewrite instanceof WP_Rewrite && ! empty( $wp_rewrite->pagination_base ) ) {
-				$pagination_base = $wp_rewrite->pagination_base;
-			}
 			self::delete_dir( $dir . '/' . $pagination_base );
 		}
 	}
 
 	/**
-	 * Invalida un URL anche sul reverse proxy (Varnish di Cloudways e
-	 * compatibili): richiesta HTTP con metodo PURGE, come fanno Breeze e
-	 * Proxy Cache Purge. Con $subtree true usa il purge regex sull'intero
-	 * sottoalbero del percorso (paginazioni comprese; sulla home equivale
-	 * al purge dell'intero dominio).
+	 * Varnish purge mode actually in use: 'cloudways', 'generic' or 'off'.
+	 *
+	 * "auto" (default) follows what was detected on the server, see
+	 * detect_varnish_env(): nothing is sent when no Varnish was seen.
+	 *
+	 * @return string
+	 */
+	private function varnish_mode() {
+		if ( defined( 'SKIT_NO_VARNISH' ) && SKIT_NO_VARNISH ) {
+			return 'off';
+		}
+
+		$mode = isset( $this->settings['varnish_mode'] ) ? (string) $this->settings['varnish_mode'] : 'auto';
+		if ( 'auto' === $mode ) {
+			$env  = (string) get_option( 'skit_varnish_env', 'none' );
+			$mode = in_array( $env, array( 'cloudways', 'generic' ), true ) ? $env : 'off';
+		}
+
+		/**
+		 * Filters whether Varnish purge requests are sent at all. Returning
+		 * true while the mode is "off" uses the generic mode.
+		 *
+		 * @param bool $enabled True when a purge mode is active.
+		 */
+		if ( ! apply_filters( 'skit_varnish_enabled', 'off' !== $mode ) ) {
+			return 'off';
+		}
+
+		return 'off' === $mode ? 'generic' : $mode;
+	}
+
+	/**
+	 * Records which reverse proxy sits in front of the site, read from the
+	 * request headers of an administrator's request (headers of anonymous
+	 * requests can be forged, so they are never used).
+	 *
+	 * Same signals Breeze (the Cloudways plugin) uses: Varnish adds X-Varnish
+	 * to backend requests; Cloudways also adds X-Application, which is
+	 * "varnishpass" or "bypass" when Varnish is disabled for the app.
+	 */
+	public static function detect_varnish_env() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		$app = isset( $_SERVER['HTTP_X_APPLICATION'] ) ? trim( sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_APPLICATION'] ) ) ) : null;
+		$env = '';
+		if ( null !== $app && in_array( $app, array( 'varnishpass', 'bypass' ), true ) ) {
+			$env = 'none';
+		} elseif ( isset( $_SERVER['HTTP_X_VARNISH'] ) ) {
+			$env = null === $app ? 'generic' : 'cloudways';
+		}
+
+		if ( '' !== $env && get_option( 'skit_varnish_env' ) !== $env ) {
+			update_option( 'skit_varnish_env', $env );
+		}
+	}
+
+	/**
+	 * Invalida un URL anche sul reverse proxy (Varnish).
+	 *
+	 * - cloudways: same requests as Breeze, the official Cloudways plugin:
+	 *   URLPURGE for a single URL and PURGE "/.*" for the whole application,
+	 *   sent to the local Varnish (127.0.0.1) with the site's Host header,
+	 *   so that a CDN in front of the site is never involved. Cloudways has
+	 *   no partial regex purge: pagination pages expire with Varnish's TTL.
+	 * - generic: the Proxy Cache Purge convention: PURGE with an
+	 *   X-Purge-Method header (default | regex), sent to the site host or to
+	 *   SKIT_VARNISH_IP.
 	 *
 	 * Non blocca il salvataggio: richiesta non bloccante, timeout breve.
-	 * Disattivabile con `define( 'SKIT_NO_VARNISH', true )` o col filtro
-	 * `skit_varnish_enabled`.
+	 * Disattivabile con `define( 'SKIT_NO_VARNISH', true )`, con l'opzione
+	 * "Varnish" nelle impostazioni o col filtro `skit_varnish_enabled`.
 	 *
-	 * @param string $url     URL completo da invalidare.
-	 * @param bool   $subtree True per invalidare anche tutto il sottoalbero.
+	 * @param string $url   URL completo da invalidare.
+	 * @param string $scope 'url' (this URL), 'subtree' (regex on everything
+	 *                      below the URL) or 'all' (whole site).
 	 */
-	private function varnish_purge( $url, $subtree = false ) {
-		if ( defined( 'SKIT_NO_VARNISH' ) && SKIT_NO_VARNISH ) {
+	private function varnish_purge( $url, $scope = 'url' ) {
+		$mode = $this->varnish_mode();
+		if ( 'off' === $mode ) {
 			return;
 		}
-		if ( ! apply_filters( 'skit_varnish_enabled', true ) ) {
-			return;
-		}
+
 		$parts = wp_parse_url( $url );
 		if ( empty( $parts['host'] ) ) {
 			return;
 		}
 
-		$path = isset( $parts['path'] ) ? $parts['path'] : '/';
-		if ( $subtree ) {
-			$path = rtrim( $path, '/' ) . '/.*';
-		}
-		$target = ( isset( $parts['scheme'] ) ? $parts['scheme'] : 'https' ) . '://' . $parts['host'] . $path;
+		$scheme = isset( $parts['scheme'] ) ? $parts['scheme'] : 'http';
+		$path   = isset( $parts['path'] ) ? $parts['path'] : '/';
+		$ip     = defined( 'SKIT_VARNISH_IP' ) && SKIT_VARNISH_IP ? (string) SKIT_VARNISH_IP : '';
+		$host   = $parts['host'] . ( isset( $parts['port'] ) ? ':' . (int) $parts['port'] : '' );
 
-		wp_remote_request( $target, array(
-			'method'    => 'PURGE',
-			'blocking'  => false,
-			'timeout'   => 3,
-			'sslverify' => false,
-			'headers'   => array(
-				'Host'           => $parts['host'],
-				'X-Purge-Method' => $subtree ? 'regex' : 'default',
+		if ( 'cloudways' === $mode ) {
+			if ( 'subtree' === $scope ) {
+				return;
+			}
+			$method  = 'all' === $scope ? 'PURGE' : 'URLPURGE';
+			$target  = $scheme . '://' . ( '' !== $ip ? $ip : '127.0.0.1' ) . ( 'all' === $scope ? '/.*' : $path );
+			$headers = array( 'Host' => $parts['host'] );
+		} else {
+			$regex   = 'url' !== $scope;
+			$target  = $scheme . '://' . ( '' !== $ip ? $ip : $host ) . ( 'all' === $scope ? '/' : $path ) . ( $regex ? '.*' : '' );
+			$method  = 'PURGE';
+			$headers = array(
+				'Host'           => $host,
+				'X-Purge-Method' => $regex ? 'regex' : 'default',
+			);
+		}
+
+		/**
+		 * Filters a Varnish purge request before it is sent. Return an empty
+		 * 'url' to skip it.
+		 *
+		 * @param array  $request { @type string $url Target URL. @type array $args wp_remote_request() arguments. }
+		 * @param string $url     URL being purged.
+		 * @param string $scope   'url', 'subtree' or 'all'.
+		 * @param string $mode    'cloudways' or 'generic'.
+		 */
+		$request = (array) apply_filters(
+			'skit_varnish_purge_request',
+			array(
+				'url'  => $target,
+				'args' => array(
+					'method'    => $method,
+					'blocking'  => false,
+					'timeout'   => 3,
+					'sslverify' => false, // Local proxy, usually without a valid certificate for its IP.
+					'headers'   => $headers,
+				),
 			),
-		) );
+			$url,
+			$scope,
+			$mode
+		);
+		if ( empty( $request['url'] ) ) {
+			return;
+		}
+
+		wp_remote_request( (string) $request['url'], isset( $request['args'] ) ? (array) $request['args'] : array() );
 	}
 
 	/**
