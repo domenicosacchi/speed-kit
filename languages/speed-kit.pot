@@ -1,0 +1,545 @@
+# Copyright (C) 2026 Domenico Sacchi
+# This file is distributed under the GPL-2.0-or-later.
+msgid ""
+msgstr ""
+"Project-Id-Version: SpeedKit 1.3.0\n"
+"Report-Msgid-Bugs-To: https://github.com/domenicosacchi/speed-kit/issues\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: 2026-11-13T19:39:09+00:00\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"X-Generator: WP-CLI 2.12.0\n"
+"X-Domain: speed-kit\n"
+
+#. Plugin Name of the plugin
+#: speed-kit.php
+msgid "SpeedKit"
+msgstr ""
+
+#. Plugin URI of the plugin
+#. Author URI of the plugin
+#: speed-kit.php
+msgid "https://github.com/domenicosacchi/speed-kit"
+msgstr ""
+
+#. Description of the plugin
+#: speed-kit.php
+msgid "Caching and performance optimization: disk page cache with advanced-cache drop-in, automatic purge, browser cache/gzip rules, HTML and CSS minify, defer and delay JS, image and iframe lazyload, YouTube facade, sitemap and link preload, CDN, database cleanup."
+msgstr ""
+
+#. Author of the plugin
+#: speed-kit.php
+msgid "Domenico Sacchi"
+msgstr ""
+
+#: admin/class-skit-admin.php:85
+#: admin/class-skit-admin.php:727
+msgid "Purge all cache"
+msgstr ""
+
+#: admin/class-skit-admin.php:96
+msgid "Purge this page"
+msgstr ""
+
+#: admin/class-skit-admin.php:109
+msgid "Start cache preload"
+msgstr ""
+
+#: admin/class-skit-admin.php:168
+msgid "You do not have permission to do this."
+msgstr ""
+
+#: admin/class-skit-admin.php:212
+#: admin/class-skit-admin.php:729
+msgid "Reinstall components"
+msgstr ""
+
+#: admin/class-skit-admin.php:216
+msgid "WP Rocket is still active. Deactivate it, then activate SpeedKit again (or use \"Reinstall components\" in the settings) to install the drop-in and the rules."
+msgstr ""
+
+#: admin/class-skit-admin.php:218
+msgid "An advanced-cache.php file from another cache plugin is present. Remove it and use \"Reinstall components\" in the SpeedKit settings."
+msgstr ""
+
+#. translators: %s: comma-separated list of plugin names.
+#: admin/class-skit-admin.php:229
+#, php-format
+msgid "Other cache plugins are active (%s). Two page caches overwrite each other: deactivate one of them."
+msgstr ""
+
+#: admin/class-skit-admin.php:239
+msgid "The advanced-cache.php drop-in is not active (WP_CACHE missing or file absent): pages are not served from the cache."
+msgstr ""
+
+#. translators: 1: old drop-in version, 2: plugin version.
+#: admin/class-skit-admin.php:250
+#, php-format
+msgid "advanced-cache.php drop-in updated automatically from version %1$s to %2$s. Reload the page to confirm."
+msgstr ""
+
+#. translators: 1: drop-in version, 2: plugin version.
+#: admin/class-skit-admin.php:262
+#, php-format
+msgid "The advanced-cache.php drop-in (version %1$s) does not match the plugin (version %2$s) and the automatic copy failed: check the permissions of wp-content."
+msgstr ""
+
+#: admin/class-skit-admin.php:274
+msgid "Cache purged."
+msgstr ""
+
+#: admin/class-skit-admin.php:275
+msgid "Preload started: the cache will be rebuilt in the background."
+msgstr ""
+
+#: admin/class-skit-admin.php:276
+msgid "Settings saved. Cache purged and configuration regenerated."
+msgstr ""
+
+#: admin/class-skit-admin.php:277
+msgid "Components reinstalled (drop-in, WP_CACHE, .htaccess rules, config)."
+msgstr ""
+
+#: admin/class-skit-admin.php:278
+msgid "Database cleaned."
+msgstr ""
+
+#: admin/class-skit-admin.php:283
+msgid "revisions"
+msgstr ""
+
+#: admin/class-skit-admin.php:284
+msgid "auto-drafts"
+msgstr ""
+
+#: admin/class-skit-admin.php:285
+msgid "trashed posts"
+msgstr ""
+
+#: admin/class-skit-admin.php:286
+msgid "spam/trashed comments"
+msgstr ""
+
+#: admin/class-skit-admin.php:287
+msgid "expired transients"
+msgstr ""
+
+#. translators: %s: comma-separated list such as "3 revisions, 1 auto-drafts".
+#: admin/class-skit-admin.php:294
+#, php-format
+msgid "Database cleaned: %s."
+msgstr ""
+
+#: admin/class-skit-admin.php:299
+msgid "Database cleanup not run: tick the confirmation checkbox."
+msgstr ""
+
+#: admin/class-skit-admin.php:356
+msgid "Settings"
+msgstr ""
+
+#: admin/class-skit-admin.php:446
+msgid "Never (automatic purge only)"
+msgstr ""
+
+#: admin/class-skit-admin.php:447
+msgid "1 hour"
+msgstr ""
+
+#: admin/class-skit-admin.php:448
+msgid "5 hours"
+msgstr ""
+
+#: admin/class-skit-admin.php:449
+msgid "10 hours (recommended)"
+msgstr ""
+
+#: admin/class-skit-admin.php:450
+msgid "24 hours"
+msgstr ""
+
+#: admin/class-skit-admin.php:451
+msgid "7 days"
+msgstr ""
+
+#. translators: 1: number of cached pages, 2: total size (e.g. "1 MB").
+#: admin/class-skit-admin.php:463
+#, php-format
+msgid "Page cache: %1$s files, %2$s."
+msgstr ""
+
+#: admin/class-skit-admin.php:468
+msgid "Drop-in:"
+msgstr ""
+
+#: admin/class-skit-admin.php:468
+msgid "active"
+msgstr ""
+
+#: admin/class-skit-admin.php:468
+msgid "NOT active"
+msgstr ""
+
+#: admin/class-skit-admin.php:475
+#: admin/class-skit-admin.php:478
+msgid "Page cache"
+msgstr ""
+
+#: admin/class-skit-admin.php:480
+msgid "Enable the disk cache for pages"
+msgstr ""
+
+#: admin/class-skit-admin.php:484
+msgid "Lifespan"
+msgstr ""
+
+#: admin/class-skit-admin.php:491
+msgid "Older files are deleted by an hourly cron job and rebuilt on the next visit (or by the preload)."
+msgstr ""
+
+#: admin/class-skit-admin.php:495
+msgid "Separate mobile cache"
+msgstr ""
+
+#: admin/class-skit-admin.php:497
+msgid "Separate files for mobile devices (only needed with non-responsive themes)"
+msgstr ""
+
+#: admin/class-skit-admin.php:501
+msgid "Excluded URIs"
+msgstr ""
+
+#: admin/class-skit-admin.php:504
+msgid "One regex per line, matched against the URL path."
+msgstr ""
+
+#: admin/class-skit-admin.php:508
+msgid "Ignored query parameters"
+msgstr ""
+
+#: admin/class-skit-admin.php:510
+msgid "Empty = default list (utm_*, fbclid, gclid...)"
+msgstr ""
+
+#: admin/class-skit-admin.php:511
+msgid "URLs that only carry these parameters get the cache of the base page. Empty = default list."
+msgstr ""
+
+#: admin/class-skit-admin.php:515
+msgid "Cookies that bypass the cache"
+msgstr ""
+
+#. translators: %s: list of default cookie name prefixes.
+#: admin/class-skit-admin.php:522
+#, php-format
+msgid "One cookie name prefix per line, in addition to the defaults (%s). Visitors carrying one of these cookies neither receive nor generate cached pages."
+msgstr ""
+
+#: admin/class-skit-admin.php:531
+msgid "Server rules (.htaccess)"
+msgstr ""
+
+#: admin/class-skit-admin.php:534
+msgid "Direct serving"
+msgstr ""
+
+#: admin/class-skit-admin.php:536
+msgid "Serve cache files directly from Apache without starting PHP (faster)"
+msgstr ""
+
+#: admin/class-skit-admin.php:540
+msgid "Browser cache"
+msgstr ""
+
+#: admin/class-skit-admin.php:542
+msgid "Expires/Cache-Control headers for static assets"
+msgstr ""
+
+#: admin/class-skit-admin.php:546
+msgid "Gzip compression"
+msgstr ""
+
+#: admin/class-skit-admin.php:548
+msgid "Compress HTML, CSS, JS and fonts with mod_deflate"
+msgstr ""
+
+#: admin/class-skit-admin.php:553
+msgid "Optimizations"
+msgstr ""
+
+#: admin/class-skit-admin.php:556
+msgid "Minify HTML"
+msgstr ""
+
+#: admin/class-skit-admin.php:557
+msgid "Remove whitespace and comments from the cached HTML"
+msgstr ""
+
+#: admin/class-skit-admin.php:560
+msgid "Defer JavaScript"
+msgstr ""
+
+#: admin/class-skit-admin.php:562
+msgid "Load external scripts with the <code>defer</code> attribute"
+msgstr ""
+
+#: admin/class-skit-admin.php:564
+msgid "Exclusions: one regex per line, matched against the script URL. jQuery is excluded automatically."
+msgstr ""
+
+#: admin/class-skit-admin.php:568
+msgid "Delay JavaScript"
+msgstr ""
+
+#: admin/class-skit-admin.php:570
+msgid "Delay JavaScript execution until the first interaction (replaces defer)"
+msgstr ""
+
+#: admin/class-skit-admin.php:571
+msgid "text found in the script tag to exclude"
+msgstr ""
+
+#: admin/class-skit-admin.php:572
+msgid "Very aggressive: test analytics, consent and critical scripts carefully. Exclusions: one string per line."
+msgstr ""
+
+#: admin/class-skit-admin.php:576
+msgid "Lazyload iframes"
+msgstr ""
+
+#: admin/class-skit-admin.php:577
+msgid "Add <code>loading=\"lazy\"</code> to iframes"
+msgstr ""
+
+#: admin/class-skit-admin.php:580
+msgid "DNS prefetch"
+msgstr ""
+
+#: admin/class-skit-admin.php:583
+msgid "One host per line: a <code>&lt;link rel=\"dns-prefetch\"&gt;</code> is added for each."
+msgstr ""
+
+#: admin/class-skit-admin.php:588
+msgid "Media"
+msgstr ""
+
+#: admin/class-skit-admin.php:591
+msgid "Lazyload images"
+msgstr ""
+
+#: admin/class-skit-admin.php:593
+msgid "Add <code>loading=\"lazy\"</code> and <code>decoding=\"async\"</code> to images"
+msgstr ""
+
+#. translators: %s: number input.
+#: admin/class-skit-admin.php:599
+#, php-format
+msgid "Skip the first %s images"
+msgstr ""
+
+#: admin/class-skit-admin.php:605
+msgid "The first images (logo, featured image / LCP) must load right away. Images with <code>fetchpriority=\"high\"</code> are never lazyloaded. Exclude single images with the <code>skip-lazy</code> class."
+msgstr ""
+
+#: admin/class-skit-admin.php:609
+msgid "YouTube facade"
+msgstr ""
+
+#: admin/class-skit-admin.php:611
+msgid "Replace YouTube iframes with their thumbnail; the player loads only on click"
+msgstr ""
+
+#: admin/class-skit-admin.php:612
+msgid "The YouTube player and its scripts are not downloaded until the visitor clicks play. The thumbnail is loaded from i.ytimg.com and the player from youtube-nocookie.com."
+msgstr ""
+
+#: admin/class-skit-admin.php:617
+msgid "Static assets"
+msgstr ""
+
+#: admin/class-skit-admin.php:620
+msgid "Minify CSS"
+msgstr ""
+
+#: admin/class-skit-admin.php:622
+msgid "Minify local stylesheets (<code>.min.css</code> files are skipped)"
+msgstr ""
+
+#: admin/class-skit-admin.php:623
+msgid "regex on the URL of the CSS file to exclude"
+msgstr ""
+
+#: admin/class-skit-admin.php:627
+msgid "Google Fonts"
+msgstr ""
+
+#: admin/class-skit-admin.php:628
+msgid "Add <code>display=swap</code> and a preconnect to fonts.gstatic.com"
+msgstr ""
+
+#: admin/class-skit-admin.php:631
+msgid "Preload fonts"
+msgstr ""
+
+#: admin/class-skit-admin.php:634
+msgid "URLs of critical fonts (one per line): they are preloaded with <code>&lt;link rel=\"preload\"&gt;</code>."
+msgstr ""
+
+#: admin/class-skit-admin.php:638
+msgid "Emoji"
+msgstr ""
+
+#: admin/class-skit-admin.php:639
+msgid "Remove the WordPress emoji script (browsers render emoji natively)"
+msgstr ""
+
+#: admin/class-skit-admin.php:642
+msgid "Preload links"
+msgstr ""
+
+#: admin/class-skit-admin.php:644
+msgid "Prefetch internal pages when the mouse hovers a link"
+msgstr ""
+
+#: admin/class-skit-admin.php:645
+msgid "The next navigation starts from the browser cache (instant.page style). Links with a query string, <code>rel=\"nofollow\"</code>, <code>download</code> or <code>data-no-prefetch</code> are skipped."
+msgstr ""
+
+#: admin/class-skit-admin.php:650
+msgid "CDN"
+msgstr ""
+
+#: admin/class-skit-admin.php:653
+msgid "URL rewriting"
+msgstr ""
+
+#: admin/class-skit-admin.php:655
+msgid "Serve static assets from a CDN host"
+msgstr ""
+
+#: admin/class-skit-admin.php:659
+msgid "Only the hostname of the CDN / pull zone. URLs under <code>/wp-content/</code> and <code>/wp-includes/</code> are rewritten."
+msgstr ""
+
+#: admin/class-skit-admin.php:664
+msgid "Reverse proxy (Varnish)"
+msgstr ""
+
+#: admin/class-skit-admin.php:667
+msgid "Varnish purge"
+msgstr ""
+
+#: admin/class-skit-admin.php:672
+msgid "Cloudways Varnish"
+msgstr ""
+
+#: admin/class-skit-admin.php:673
+msgid "Varnish"
+msgstr ""
+
+#: admin/class-skit-admin.php:674
+msgid "none"
+msgstr ""
+
+#. translators: %s: reverse proxy detected on the server, e.g. "Cloudways Varnish" or "none".
+#: admin/class-skit-admin.php:678
+#, php-format
+msgid "Automatic (detected: %s)"
+msgstr ""
+
+#: admin/class-skit-admin.php:679
+msgid "Cloudways (URLPURGE / PURGE to 127.0.0.1)"
+msgstr ""
+
+#: admin/class-skit-admin.php:680
+msgid "Generic Varnish (PURGE with X-Purge-Method)"
+msgstr ""
+
+#: admin/class-skit-admin.php:681
+msgid "Off"
+msgstr ""
+
+#: admin/class-skit-admin.php:689
+msgid "When content changes SpeedKit also purges the affected URLs from Varnish. Automatic mode detects Varnish from the headers of your admin requests and sends nothing when no Varnish is found. The target IP can be changed with the SKIT_VARNISH_IP constant."
+msgstr ""
+
+#: admin/class-skit-admin.php:694
+msgid "Database"
+msgstr ""
+
+#: admin/class-skit-admin.php:697
+msgid "Automatic cleanup"
+msgstr ""
+
+#: admin/class-skit-admin.php:699
+msgid "Weekly cleanup: revisions, auto-drafts older than 7 days, trash, spam, expired transients"
+msgstr ""
+
+#: admin/class-skit-admin.php:700
+msgid "Warning: revisions and trashed items are deleted permanently. You can also run it manually from the Tools below."
+msgstr ""
+
+#: admin/class-skit-admin.php:705
+msgid "Preload"
+msgstr ""
+
+#: admin/class-skit-admin.php:708
+msgid "Automatic preload"
+msgstr ""
+
+#: admin/class-skit-admin.php:710
+msgid "Rebuild the cache from the sitemap after every full purge"
+msgstr ""
+
+#: admin/class-skit-admin.php:714
+msgid "Sitemap URL"
+msgstr ""
+
+#: admin/class-skit-admin.php:717
+msgid "Empty = automatic detection (sitemap_index.xml, sitemap.xml, wp-sitemap.xml)."
+msgstr ""
+
+#: admin/class-skit-admin.php:722
+msgid "Save settings"
+msgstr ""
+
+#: admin/class-skit-admin.php:725
+msgid "Tools"
+msgstr ""
+
+#: admin/class-skit-admin.php:728
+msgid "Start preload"
+msgstr ""
+
+#: admin/class-skit-admin.php:731
+msgid "\"Reinstall components\" rewrites the advanced-cache.php drop-in, WP_CACHE, the .htaccess rules and the configuration file."
+msgstr ""
+
+#: admin/class-skit-admin.php:732
+msgid "Permanently delete revisions, old auto-drafts, trash, spam and expired transients?"
+msgstr ""
+
+#: admin/class-skit-admin.php:736
+msgid "I understand that revisions, auto-drafts older than 7 days, trashed posts, spam/trashed comments and expired transients are deleted permanently."
+msgstr ""
+
+#: admin/class-skit-admin.php:738
+msgid "Clean up database now"
+msgstr ""
+
+#: includes/class-skit-media.php:171
+msgid "YouTube video"
+msgstr ""
+
+#. translators: %s: video title.
+#: includes/class-skit-media.php:188
+#, php-format
+msgid "Play: %s"
+msgstr ""
+
+#: includes/class-skit-preload.php:47
+msgid "Every minute (SpeedKit preload)"
+msgstr ""
