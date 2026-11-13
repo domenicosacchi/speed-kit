@@ -1,13 +1,13 @@
 <?php
 /**
  * Plugin Name:       SpeedKit
- * Plugin URI:        https://github.com/example/speed-kit
+ * Plugin URI:        https://github.com/domenicosacchi/speed-kit
  * Description:       Caching and performance optimization: disk page cache with advanced-cache drop-in, automatic purge, browser cache/gzip rules, HTML and CSS minify, defer and delay JS, image and iframe lazyload, YouTube facade, sitemap and link preload, CDN, database cleanup.
- * Version:           1.2.0
+ * Version:           1.3.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
- * Author:            SpeedKit
- * Author URI:        https://github.com/example/speed-kit
+ * Author:            Domenico Sacchi
+ * Author URI:        https://github.com/domenicosacchi/speed-kit
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       speed-kit
@@ -24,7 +24,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // On every version bump ALSO update the two version strings in
 // includes/advanced-cache.php (SKIT_DROPIN_VERSION comment and the
 // SKIT_ADVANCED_CACHE define).
-define( 'SKIT_VERSION', '1.2.0' );
+define( 'SKIT_VERSION', '1.3.0' );
 define( 'SKIT_PLUGIN_FILE', __FILE__ );
 define( 'SKIT_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SKIT_PLUGIN_URL', plugin_dir_url( __FILE__ ) );

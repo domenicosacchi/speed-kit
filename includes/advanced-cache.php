@@ -8,7 +8,7 @@
  * stops, otherwise WordPress carries on (the plugin saves the output
  * buffer on template_redirect).
  *
- * SKIT_DROPIN_VERSION: 1.2.0
+ * SKIT_DROPIN_VERSION: 1.3.0
  *
  * @package SpeedKit
  */
@@ -311,7 +311,7 @@ endif;
 // blocks do not exist before the block runs).
 if ( ! defined( 'SKIT_ADVANCED_CACHE' ) ) {
 	// Tells the plugin that the drop-in is active and up to date.
-	define( 'SKIT_ADVANCED_CACHE', '1.2.0' );
+	define( 'SKIT_ADVANCED_CACHE', '1.3.0' );
 
 	// SKIT_PLUGIN_DIR exists only when the plugin included this file with
 	// WordPress already running: then nothing is served, definitions only.

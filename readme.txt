@@ -1,57 +1,89 @@
 === SpeedKit ===
-Contributors: speedkit
-Tags: cache, performance, page cache, defer js, preload
+Contributors: domenicosacchi
+Tags: cache, page cache, performance, varnish, lazyload
 Requires at least: 6.0
-Tested up to: 6.7
+Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.1.0
+Stable tag: 1.3.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Caching e ottimizzazione performance senza abbonamenti: page cache su disco, purge automatico, regole browser cache, defer/delay JS, preload da sitemap.
+Disk page cache with advanced-cache drop-in, automatic and Varnish purge, browser cache rules, minify, defer/delay JS, lazyload, preload.
 
 == Description ==
 
-SpeedKit è un plugin di caching completo e autonomo (nessun servizio esterno, nessuna licenza) pensato per sostituire WP Rocket sulle funzionalità che contano davvero:
+SpeedKit is a self-contained caching and performance plugin: no external service, no license key, no telemetry.
 
-* **Page cache su disco** con drop-in `advanced-cache.php`: le pagine in cache vengono servite senza caricare plugin e tema.
-* **Serve diretto da Apache** (mod_rewrite): sulle cache hit PHP non parte proprio, come WP Rocket.
-* **Varianti** https e mobile, con pre-compressione gzip dei file e supporto 304 Not Modified.
-* **Purge automatico**: salvataggio/eliminazione post e pagine (con home, archivi, autore, date), commenti, termini, cambio tema/menu/widget. Cron orario per la scadenza dei file.
-* **Regole .htaccess**: browser caching (Expires/Cache-Control immutable), gzip via mod_deflate, no ETag.
-* **Ottimizzazioni HTML**: minify HTML, defer JS con esclusioni (filtro `skit_exclude_defer_js`), delay JS alla prima interazione (filtro `skit_delay_js_exclusions`), lazyload iframe, dns-prefetch.
-* **Media**: lazyload immagini con skip delle prime N (LCP salvaguardato), facade YouTube (thumbnail + play, player caricato solo al click).
-* **Asset**: minify CSS locale con cache e cache-busting automatico, Google Fonts con display=swap e preconnect, preload dei font critici, rimozione script emoji.
-* **Preload link**: prefetch delle pagine interne al passaggio del mouse (stile instant.page).
-* **CDN**: riscrittura degli URL statici verso un host CDN/pull-zone.
-* **Database**: pulizia di revisioni, bozze automatiche, cestino, spam e transient scaduti, manuale o settimanale.
-* **Preload da sitemap**: dopo ogni purge completo la cache viene rigenerata in background dalla sitemap (Yoast, RankMath, core WP).
-* **Trucchi ereditati da WP Rocket**: cookie commenti a 3 minuti, esclusione automatica di utenti loggati, WooCommerce (carrello/checkout), query string di tracciamento ignorate (utm_*, fbclid, gclid...).
+* **Disk page cache** served by an `advanced-cache.php` drop-in before plugins and theme load, with https and optional mobile variants, pre-compressed gzip copies and 304 Not Modified support.
+* **Direct serving from Apache** through `mod_rewrite` rules in `.htaccess`: on a cache hit PHP is not started.
+* **Never cached:** logged-in users, cart/session/comment/password cookies (plus any cookie you add), POST requests, query strings, previews, search, 404s, feeds, WooCommerce cart/checkout/account, `Cache-Control: no-store/no-cache/private` responses.
+* **Automatic purge** on post, comment and term changes (including the old URL of unpublished, trashed or renamed posts), theme, menu, widget and permalink changes. Manual purge from the admin bar.
+* **Varnish purge** with a Cloudways mode (`URLPURGE` / `PURGE` to 127.0.0.1) and a generic mode (`PURGE` + `X-Purge-Method`), detected automatically.
+* **Preload** from the sitemap after a full purge, in background batches.
+* **.htaccess rules:** browser caching, gzip, no ETag.
+* **Optimizations:** HTML minify, JavaScript defer and delay with exclusions, iframe and image lazyload (LCP images are skipped), YouTube facade, local CSS minify, Google Fonts `display=swap`, font preload, dns-prefetch, emoji script removal, link prefetch on hover, CDN rewriting.
+* **Database cleanup:** revisions, old auto-drafts, trash, spam, expired transients; manual with confirmation, or weekly.
 
-Niente di ciò che segue, per scelta: Remove Unused CSS e Critical CSS (dipendono dal SaaS di WP Rocket), CDN a pagamento, tracking, licenze.
+Full documentation, hooks and constants: https://github.com/domenicosacchi/speed-kit
 
 == Installation ==
 
-1. **Disattiva WP Rocket** (e i suoi helper) prima di attivare SpeedKit: due plugin di cache non possono convivere.
-2. Attiva SpeedKit: installa da solo drop-in, costante WP_CACHE, regole .htaccess e file di configurazione.
-3. Controlla Impostazioni → SpeedKit: se il drop-in risulta "NON attivo" usa "Reinstalla componenti".
-4. Verifica una pagina da navigazione anonima: nel sorgente deve comparire `<!-- Cached by SpeedKit ... -->` e alla seconda visita l'header `X-SpeedKit-Cache: HIT` (o il serve diretto Apache).
+1. Deactivate any other page cache plugin (WP Rocket, W3 Total Cache, WP Super Cache, LiteSpeed Cache, WP Fastest Cache, Breeze, Cache Enabler, Comet Cache, Hummingbird, Speed Optimizer, WP-Optimize, Swift Performance Lite).
+2. Upload the `speed-kit` folder to `/wp-content/plugins/` and activate the plugin. Activation installs the drop-in, adds `WP_CACHE` to `wp-config.php`, writes the `.htaccess` rules and the config file.
+3. Open Settings > SpeedKit. If the drop-in is "NOT active", click "Reinstall components".
+4. From a private window, the page source must end with `<!-- Cached by SpeedKit ... -->` and the second visit must return the `X-SpeedKit-Cache: HIT` header (or be served directly by Apache).
+
+Deactivation removes the drop-in, the `WP_CACHE` line added by SpeedKit, the `.htaccess` block, the config files and the cache. Uninstalling also deletes the settings.
 
 == Frequently Asked Questions ==
 
-= Come escludo uno script dal defer? =
-Impostazioni → SpeedKit → Defer JavaScript: una regex per riga (es. `/wp-content/plugins/mio-plugin/(.*).js`), oppure via codice con il filtro `skit_exclude_defer_js` (stessa logica di `rocket_exclude_defer_js`).
+= How do I exclude a page from the cache? =
 
-= Come escludo una pagina dalla cache? =
-Aggiungi una regex in "URI esclusi", oppure definisci `DONOTCACHEPAGE` nel template, oppure usa il filtro `skit_do_cache_page`.
+Add a regex to "Excluded URIs", define `DONOTCACHEPAGE` in the template, or return `false` from the `skit_do_cache_page` filter.
 
-= Funziona con Nginx? =
-Sì tramite il drop-in PHP (che è comunque molto veloce). Il serve diretto senza PHP richiede Apache; su Cloudways (nginx davanti ad Apache) le regole .htaccess funzionano.
+= How do I exclude a script from defer? =
+
+Add a regex matching its URL to the defer exclusions (for example `/wp-content/plugins/my-plugin/(.*).js`) or use the `skit_exclude_defer_js` filter.
+
+= Does it work with Nginx? =
+
+Yes, through the PHP drop-in. Direct serving without PHP requires Apache reading `.htaccess`.
+
+= Does it work on Cloudways? =
+
+Yes. Set "Varnish purge" to Automatic or Cloudways: content changes are purged from Varnish with the same kind of requests Breeze sends. Deactivate Breeze, which is a page cache too.
+
+= My cookie consent banner is rendered on the server. =
+
+Add its cookie to "Cookies that bypass the cache": visitors carrying it neither receive nor generate cached pages. Banners that decide in the browser need nothing.
+
+= Does SpeedKit have WP-CLI commands? =
+
+No. `wp plugin activate`, `deactivate` and `uninstall` run the same routines as the admin.
 
 == Changelog ==
 
+= 1.3.0 =
+* Purge the old URL of unpublished, trashed or renamed posts (they kept being served from the cache).
+* Safer `wp-config.php` and `.htaccess` writes with verification and rollback; WP_CACHE line on its own line and restored on deactivation.
+* Varnish purge rewritten: Cloudways mode, generic mode, automatic detection, no more whole-site flush on every update.
+* Cache only requests for the site's own host; respect `Cache-Control: no-store/no-cache/private`.
+* Configurable cookies that bypass the cache.
+* Database cleanup keeps recent auto-drafts and requires confirmation.
+* CSS minify keeps `calc()` and descendant selectors intact; link prefetch skips URLs with a query string.
+* English source strings, Italian translation.
+
+= 1.2.0 =
+* Varnish purge requests on every cache purge.
+* Automatic drop-in update when its version differs from the plugin.
+
 = 1.1.0 =
-* Lazyload immagini avanzato, facade YouTube, minify CSS locale, Google Fonts swap/preconnect, preload font, preload link al hover, CDN, pulizia database, rimozione emoji.
+* Advanced image lazyload, YouTube facade, local CSS minify, Google Fonts swap/preconnect, font preload, link preload on hover, CDN, database cleanup, emoji removal.
 
 = 1.0.0 =
-* Prima versione: page cache, purge automatico, .htaccess, minify HTML, defer/delay JS, lazyload iframe, dns-prefetch, preload da sitemap.
+* First version: page cache, automatic purge, .htaccess rules, HTML minify, JS defer/delay, iframe lazyload, dns-prefetch, sitemap preload.
+
+== Upgrade Notice ==
+
+= 1.3.0 =
+Fixes stale pages after unpublishing or trashing a post and makes wp-config.php/.htaccess writes safer. Varnish purge now defaults to automatic detection.
