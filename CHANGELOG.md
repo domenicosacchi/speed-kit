@@ -2,7 +2,7 @@
 
 All notable changes to SpeedKit. Versions follow [Semantic Versioning](https://semver.org/).
 
-## [1.3.0] - Unreleased
+## [1.3.0] - 2026-11-13
 
 ### Security and correctness
 - The URL a post had before being unpublished, trashed or renamed is now purged; before, the retracted page kept being served from the cache.
