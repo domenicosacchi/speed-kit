@@ -45,7 +45,7 @@ When content changes, the affected URLs are purged from Varnish too. See [Hostin
 ### HTML and asset optimizations
 Applied only to the HTML that gets cached (anonymous visitors):
 - HTML minify (keeps `pre`, `textarea`, `script`, `style` intact).
-- JavaScript `defer` for external scripts, with regex exclusions (jQuery is never deferred).
+- JavaScript `defer` for external scripts, with regex exclusions (jQuery is never deferred). Like WordPress core, scripts followed by an "after" inline script (`wp_add_inline_script()`) and excluded scripts stay blocking together with their dependencies.
 - JavaScript delay until the first user interaction (opt-in), with exclusions.
 - `loading="lazy"` for iframes.
 - `loading="lazy"` and `decoding="async"` for images, skipping the first N images, images with `fetchpriority="high"` and images with the `skip-lazy` class.

@@ -16,6 +16,8 @@ All notable changes to SpeedKit. Versions follow [Semantic Versioning](https://s
 - Link prefetch skips URLs with a query string (for example `?add-to-cart=`) and any `rel` containing `nofollow`.
 - CSS minify no longer removes the spaces around `+` (which broke `calc()`) or before `:` (which turned `.a :hover` into `.a:hover`).
 - HTML minify returns the original HTML if a regular expression fails on a very large page.
+- JavaScript defer keeps blocking, like WordPress core does, every enqueued script that has an "after" inline script (`wp_add_inline_script()`, used by core for `wp-i18n` and others) or that is excluded from defer, together with its dependencies; before, the inline code ran before the deferred script it depends on.
+- `uninstall.php` no longer redefines the plugin constants when the plugin is loaded in the same request (`wp plugin uninstall --deactivate` raised PHP warnings).
 
 ### Varnish
 - New *Varnish purge* setting: Automatic (default), Cloudways, Generic, Off.

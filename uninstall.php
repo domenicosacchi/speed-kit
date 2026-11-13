@@ -10,9 +10,11 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 	exit;
 }
 
-define( 'SKIT_VERSION', 'uninstall' );
-define( 'SKIT_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
-define( 'SKIT_OPTION_KEY', 'skit_settings' );
+// The main plugin file may already be loaded in this request (e.g.
+// "wp plugin uninstall --deactivate"): never redefine its constants.
+defined( 'SKIT_VERSION' ) || define( 'SKIT_VERSION', 'uninstall' );
+defined( 'SKIT_PLUGIN_DIR' ) || define( 'SKIT_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+defined( 'SKIT_OPTION_KEY' ) || define( 'SKIT_OPTION_KEY', 'skit_settings' );
 if ( ! defined( 'SKIT_CACHE_DIR' ) ) {
 	define( 'SKIT_CACHE_DIR', WP_CONTENT_DIR . '/cache/speed-kit/' );
 }

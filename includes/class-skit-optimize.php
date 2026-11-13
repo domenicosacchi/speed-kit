@@ -80,11 +80,17 @@ class SKIT_Optimize {
 	 */
 	private function defer_js( $html ) {
 		$exclusions = $this->defer_exclusions();
+		$blocking   = $this->blocking_handles( $exclusions );
 
 		return (string) preg_replace_callback(
 			'/<script\s+((?:[^>"\']|"[^"]*"|\'[^\']*\')*?)>/i',
-			function ( $matches ) use ( $exclusions ) {
+			function ( $matches ) use ( $exclusions, $blocking ) {
 				$attrs = $matches[1];
+
+				// WordPress prints enqueued scripts with id="<handle>-js".
+				if ( $blocking && preg_match( '/(?<![\w-])id\s*=\s*["\']([^"\']+)-js["\']/i', $attrs, $id ) && isset( $blocking[ $id[1] ] ) ) {
+					return $matches[0];
+				}
 
 				// Only scripts with src (not data-src), not already defer/async, JavaScript type.
 				if ( ! preg_match( '/(?<![\w-])src\s*=/i', $attrs ) ) {
@@ -111,6 +117,63 @@ class SKIT_Optimize {
 			},
 			$html
 		);
+	}
+
+	/**
+	 * Handles of enqueued scripts that must stay blocking, like WordPress
+	 * core does for its own loading strategies: scripts followed by an
+	 * "after" inline script (wp_add_inline_script(), e.g. wp-i18n) would
+	 * otherwise run after that inline code, and scripts excluded from defer
+	 * would run before their dependencies. Both keep all their dependencies
+	 * blocking too.
+	 *
+	 * @param string[] $exclusions Defer exclusion patterns.
+	 * @return array<string,bool>
+	 */
+	private function blocking_handles( array $exclusions ) {
+		if ( ! function_exists( 'wp_scripts' ) || empty( $GLOBALS['wp_scripts'] ) ) {
+			return array();
+		}
+		$scripts  = wp_scripts();
+		$blocking = array();
+
+		foreach ( (array) $scripts->done as $handle ) {
+			if ( ! isset( $scripts->registered[ $handle ] ) ) {
+				continue;
+			}
+			$keep = ! empty( $scripts->get_data( $handle, 'after' ) );
+			$src  = (string) $scripts->registered[ $handle ]->src;
+			if ( ! $keep && '' !== $src ) {
+				foreach ( $exclusions as $pattern ) {
+					if ( '' !== $pattern && preg_match( '#' . str_replace( '#', '\#', $pattern ) . '#i', $src ) ) {
+						$keep = true;
+						break;
+					}
+				}
+			}
+			if ( $keep ) {
+				$this->add_with_dependencies( $scripts, $handle, $blocking );
+			}
+		}
+
+		return $blocking;
+	}
+
+	/**
+	 * Adds a script handle and, recursively, its dependencies to a set.
+	 *
+	 * @param WP_Scripts         $scripts Script registry.
+	 * @param string             $handle  Script handle.
+	 * @param array<string,bool> $set     Set being built.
+	 */
+	private function add_with_dependencies( $scripts, $handle, array &$set ) {
+		if ( isset( $set[ $handle ] ) || ! isset( $scripts->registered[ $handle ] ) ) {
+			return;
+		}
+		$set[ $handle ] = true;
+		foreach ( (array) $scripts->registered[ $handle ]->deps as $dep ) {
+			$this->add_with_dependencies( $scripts, $dep, $set );
+		}
 	}
 
 	/**

@@ -71,6 +71,7 @@ No. `wp plugin activate`, `deactivate` and `uninstall` run the same routines as 
 * Configurable cookies that bypass the cache.
 * Database cleanup keeps recent auto-drafts and requires confirmation.
 * CSS minify keeps `calc()` and descendant selectors intact; link prefetch skips URLs with a query string.
+* JavaScript defer keeps scripts with "after" inline code (and their dependencies) blocking, like WordPress core.
 * English source strings, Italian translation.
 
 = 1.2.0 =

@@ -288,9 +288,10 @@ class SKIT_Admin {
 				);
 				$parts  = array();
 				foreach ( $db_result as $key => $count ) {
-					$parts[] = (int) $count . ' ' . ( isset( $labels[ $key ] ) ? $labels[ $key ] : (string) $key );
+					// "label: count" avoids singular/plural agreement issues.
+					$parts[] = ( isset( $labels[ $key ] ) ? $labels[ $key ] : (string) $key ) . ': ' . (int) $count;
 				}
-				/* translators: %s: comma-separated list such as "3 revisions, 1 auto-drafts". */
+				/* translators: %s: comma-separated list such as "revisions: 3, auto-drafts: 0". */
 				$messages['db_cleaned'] = sprintf( __( 'Database cleaned: %s.', 'speed-kit' ), implode( ', ', $parts ) );
 				delete_transient( 'skit_db_cleanup_result' );
 			}
