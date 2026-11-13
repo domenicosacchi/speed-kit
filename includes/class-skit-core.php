@@ -1,6 +1,6 @@
 <?php
 /**
- * Core — Orchestratore: istanzia i moduli e registra i comportamenti globali.
+ * Core — Orchestrator: instantiates the modules and registers global behaviours.
  *
  * @package SpeedKit
  */
@@ -12,35 +12,35 @@ if ( ! defined( 'ABSPATH' ) ) {
 class SKIT_Core {
 
 	/**
-	 * Istanza singleton.
+	 * Singleton instance.
 	 *
 	 * @var SKIT_Core|null
 	 */
 	private static $instance = null;
 
 	/**
-	 * Impostazioni correnti.
+	 * Current settings.
 	 *
 	 * @var array
 	 */
 	public $settings;
 
 	/**
-	 * Modulo purge (usato anche dall'admin).
+	 * Purge module (also used by the admin).
 	 *
 	 * @var SKIT_Purge
 	 */
 	public $purge;
 
 	/**
-	 * Modulo preload (usato anche dall'admin).
+	 * Preload module (also used by the admin).
 	 *
 	 * @var SKIT_Preload
 	 */
 	public $preload;
 
 	/**
-	 * Modulo database (usato anche dall'admin).
+	 * Database module (also used by the admin).
 	 *
 	 * @var SKIT_Database
 	 */
@@ -60,42 +60,42 @@ class SKIT_Core {
 	private function __construct() {
 		$this->settings = SKIT_Config::get_settings();
 
-		// Invalidazione cache: sempre attiva (admin, cron, front).
+		// Cache invalidation: always on (admin, cron, front end).
 		$this->purge = new SKIT_Purge( $this->settings );
 		$this->purge->init();
 
-		// Preload: cron e ripartenza dopo i purge.
+		// Preload: cron and restart after purges.
 		$this->preload = new SKIT_Preload( $this->settings );
 		$this->preload->init();
 
-		// Cattura e ottimizzazione delle pagine: solo front-end.
+		// Page capture and optimization: front end only.
 		$page_cache = new SKIT_Page_Cache( $this->settings );
 		$page_cache->init();
 
 		$optimize = new SKIT_Optimize( $this->settings );
 		$optimize->init();
 
-		// Lazyload immagini e facade YouTube.
+		// Image lazyload and YouTube facade.
 		$media = new SKIT_Media( $this->settings );
 		$media->init();
 
-		// Minify CSS, Google Fonts, preload font, emoji.
+		// CSS minify, Google Fonts, font preload, emoji.
 		$assets = new SKIT_Assets( $this->settings );
 		$assets->init();
 
-		// Prefetch dei link interni al hover.
+		// Prefetch of internal links on hover.
 		$links = new SKIT_Links( $this->settings );
 		$links->init();
 
-		// Riscrittura URL verso CDN.
+		// URL rewriting to a CDN.
 		$cdn = new SKIT_Cdn( $this->settings );
 		$cdn->init();
 
-		// Pulizia database (cron settimanale opzionale + azione manuale).
+		// Database cleanup (optional weekly cron + manual action).
 		$this->database = new SKIT_Database( $this->settings );
 		$this->database->init();
 
-		// Admin: pagina impostazioni, admin bar, azioni manuali.
+		// Admin: settings page, admin bar, manual actions.
 		$admin = new SKIT_Admin( $this );
 		$admin->init();
 
@@ -103,11 +103,11 @@ class SKIT_Core {
 	}
 
 	/**
-	 * Comportamenti globali minori.
+	 * Minor global behaviours.
 	 */
 	private function global_tweaks() {
-		// Cookie dei commenti a vita breve (3 minuti): chi commenta torna
-		// rapidamente a ricevere pagine dalla cache. Trucco di WP Rocket.
+		// Short-lived comment cookies (3 minutes): commenters quickly go
+		// back to receiving cached pages. A WP Rocket trick.
 		add_filter(
 			'comment_cookie_lifetime',
 			function () {
@@ -116,7 +116,7 @@ class SKIT_Core {
 			PHP_INT_MAX
 		);
 
-		// Heartbeat meno frequente: meno richieste admin-ajax in background.
+		// Less frequent Heartbeat: fewer background admin-ajax requests.
 		add_filter(
 			'heartbeat_settings',
 			function ( $settings ) {
@@ -125,7 +125,7 @@ class SKIT_Core {
 			}
 		);
 
-		// Avvisa gli altri plugin che c'è una page cache attiva.
+		// Tells other plugins that a page cache is active.
 		if ( ! defined( 'WP_CACHE_PLUGIN' ) ) {
 			define( 'WP_CACHE_PLUGIN', 'speed-kit' );
 		}

@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       SpeedKit
  * Plugin URI:        https://github.com/example/speed-kit
- * Description:       Caching e ottimizzazione performance: page cache su disco con drop-in advanced-cache, purge automatico, regole browser cache/gzip, minify HTML e CSS, defer e delay JS, lazyload immagini e iframe, facade YouTube, preload sitemap e link, CDN, pulizia database.
+ * Description:       Caching and performance optimization: disk page cache with advanced-cache drop-in, automatic purge, browser cache/gzip rules, HTML and CSS minify, defer and delay JS, image and iframe lazyload, YouTube facade, sitemap and link preload, CDN, database cleanup.
  * Version:           1.2.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
@@ -11,6 +11,7 @@
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       speed-kit
+ * Domain Path:       /languages
  *
  * @package SpeedKit
  */
@@ -20,8 +21,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Plugin constants.
-// A ogni bump aggiornare ANCHE le due stringhe di versione in includes/advanced-cache.php
-// (commento SKIT_DROPIN_VERSION e define SKIT_ADVANCED_CACHE), poi rigenerare lo zip.
+// On every version bump ALSO update the two version strings in
+// includes/advanced-cache.php (SKIT_DROPIN_VERSION comment and the
+// SKIT_ADVANCED_CACHE define).
 define( 'SKIT_VERSION', '1.2.0' );
 define( 'SKIT_PLUGIN_FILE', __FILE__ );
 define( 'SKIT_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
@@ -60,6 +62,16 @@ spl_autoload_register(
 // Activation / Deactivation.
 register_activation_hook( __FILE__, array( 'SKIT_Activator', 'activate' ) );
 register_deactivation_hook( __FILE__, array( 'SKIT_Activator', 'deactivate' ) );
+
+// Translations bundled in /languages (the plugin is distributed outside
+// wordpress.org, so WordPress would not download them).
+add_action(
+	'init',
+	function () {
+		load_plugin_textdomain( 'speed-kit', false, dirname( SKIT_PLUGIN_BASENAME ) . '/languages' );
+	},
+	0
+);
 
 // Bootstrap.
 add_action(

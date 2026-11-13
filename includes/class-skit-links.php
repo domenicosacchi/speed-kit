@@ -1,9 +1,9 @@
 <?php
 /**
- * Links — Prefetch dei link interni al passaggio del mouse (stile
- * instant.page / "Preload Links" di WP Rocket): quando l'utente sfiora
- * un link, la pagina di destinazione viene prefetchata; al click la
- * navigazione parte dalla cache del browser.
+ * Links — Prefetch of internal links on hover (like instant.page or WP
+ * Rocket's "Preload Links"): when the visitor hovers a link the target
+ * page is prefetched, so on click navigation starts from the browser
+ * cache.
  *
  * @package SpeedKit
  */
@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class SKIT_Links {
 
 	/**
-	 * Impostazioni correnti.
+	 * Current settings.
 	 *
 	 * @var array
 	 */
@@ -26,7 +26,7 @@ class SKIT_Links {
 	}
 
 	/**
-	 * Registra il filtro sul buffer.
+	 * Registers the buffer filter.
 	 */
 	public function init() {
 		if ( empty( $this->settings['preload_links'] ) ) {
@@ -36,7 +36,7 @@ class SKIT_Links {
 	}
 
 	/**
-	 * Inietta lo script di prefetch prima di </body>.
+	 * Injects the prefetch script before </body>.
 	 *
 	 * @param string $html HTML.
 	 * @return string

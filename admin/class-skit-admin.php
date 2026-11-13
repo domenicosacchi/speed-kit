@@ -1,7 +1,7 @@
 <?php
 /**
- * Admin — Pagina impostazioni, admin bar (svuota cache / preload),
- * azioni manuali e avvisi di stato dell'installazione.
+ * Admin — Settings page, admin bar (purge cache / preload), manual actions
+ * and installation status notices.
  *
  * @package SpeedKit
  */
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class SKIT_Admin {
 
 	/**
-	 * Core del plugin.
+	 * Plugin core.
 	 *
 	 * @var SKIT_Core
 	 */
@@ -24,7 +24,7 @@ class SKIT_Admin {
 	}
 
 	/**
-	 * Registra gli hook (admin bar anche sul front).
+	 * Registers the hooks (the admin bar also on the front end).
 	 */
 	public function init() {
 		add_action( 'admin_bar_menu', array( $this, 'admin_bar' ), 90 );
@@ -42,9 +42,9 @@ class SKIT_Admin {
 			add_action( 'admin_notices', array( $this, 'notices' ) );
 			add_filter( 'plugin_action_links_' . SKIT_PLUGIN_BASENAME, array( $this, 'action_links' ) );
 
-			// Auto-riparazione: il GC è l'unica scadenza per i file serviti
-			// direttamente da Apache; se manca (es. attivazione andata in
-			// conflitto con WP Rocket) va rischedulato.
+			// Self-repair: the GC is the only expiry for files served directly
+			// by Apache; if it is missing (e.g. activation stopped by a WP
+			// Rocket conflict) it gets scheduled again.
 			add_action(
 				'admin_init',
 				function () {
@@ -61,7 +61,7 @@ class SKIT_Admin {
 	 * ------------------------------------------------------------------ */
 
 	/**
-	 * Voci nella admin bar.
+	 * Admin bar entries.
 	 *
 	 * @param WP_Admin_Bar $bar Admin bar.
 	 */
@@ -82,7 +82,7 @@ class SKIT_Admin {
 			array(
 				'parent' => 'speed-kit',
 				'id'     => 'skit-purge-all',
-				'title'  => 'Svuota tutta la cache',
+				'title'  => esc_html__( 'Purge all cache', 'speed-kit' ),
 				'href'   => wp_nonce_url( admin_url( 'admin-post.php?action=skit_purge_all' ), 'skit_purge_all' ),
 			)
 		);
@@ -93,7 +93,7 @@ class SKIT_Admin {
 				array(
 					'parent' => 'speed-kit',
 					'id'     => 'skit-purge-url',
-					'title'  => 'Svuota cache di questa pagina',
+					'title'  => esc_html__( 'Purge this page', 'speed-kit' ),
 					'href'   => wp_nonce_url(
 						admin_url( 'admin-post.php?action=skit_purge_url&url=' . rawurlencode( $current ) ),
 						'skit_purge_url'
@@ -106,14 +106,14 @@ class SKIT_Admin {
 			array(
 				'parent' => 'speed-kit',
 				'id'     => 'skit-preload',
-				'title'  => 'Avvia preload cache',
+				'title'  => esc_html__( 'Start cache preload', 'speed-kit' ),
 				'href'   => wp_nonce_url( admin_url( 'admin-post.php?action=skit_preload' ), 'skit_preload' ),
 			)
 		);
 	}
 
 	/* ---------------------------------------------------------------------
-	 * Azioni manuali
+	 * Manual actions
 	 * ------------------------------------------------------------------ */
 
 	public function handle_purge_all() {
@@ -159,21 +159,21 @@ class SKIT_Admin {
 	}
 
 	/**
-	 * Verifica nonce e permessi per un'azione admin-post.
+	 * Checks capability and nonce for an admin-post action.
 	 *
-	 * @param string $action Nome azione/nonce.
+	 * @param string $action Action/nonce name.
 	 */
 	private function verify_action( $action ) {
 		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_die( 'Permessi insufficienti.' );
+			wp_die( esc_html__( 'You do not have permission to do this.', 'speed-kit' ) );
 		}
 		check_admin_referer( $action );
 	}
 
 	/**
-	 * Torna alla pagina precedente (o alle impostazioni) con un flag esito.
+	 * Goes back to the previous page (or the settings page) with a result flag.
 	 *
-	 * @param string $message Codice del messaggio.
+	 * @param string $message Message code.
 	 */
 	private function redirect_back( $message ) {
 		$fallback = admin_url( 'options-general.php?page=speed-kit' );
@@ -187,64 +187,118 @@ class SKIT_Admin {
 	 * Notices
 	 * ------------------------------------------------------------------ */
 
+	/**
+	 * Prints a notice. $message must already be escaped.
+	 *
+	 * @param string $type        notice-error | notice-warning | notice-success.
+	 * @param string $message     Escaped HTML.
+	 * @param bool   $dismissible Whether the notice can be dismissed.
+	 */
+	private function print_notice( $type, $message, $dismissible = false ) {
+		printf(
+			'<div class="notice %1$s%2$s"><p><strong>SpeedKit:</strong> %3$s</p></div>',
+			esc_attr( $type ),
+			$dismissible ? ' is-dismissible' : '',
+			$message // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- escaped by the callers.
+		);
+	}
+
 	public function notices() {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
 
+		$reinstall_url  = wp_nonce_url( admin_url( 'admin-post.php?action=skit_reinstall' ), 'skit_reinstall' );
+		$reinstall_link = '<a href="' . esc_url( $reinstall_url ) . '">' . esc_html__( 'Reinstall components', 'speed-kit' ) . '</a>';
+
 		$conflict = get_transient( 'skit_activation_conflict' );
 		if ( 'wp-rocket' === $conflict ) {
-			echo '<div class="notice notice-error"><p><strong>SpeedKit:</strong> WP Rocket è ancora attivo. Disattivalo e poi riattiva SpeedKit (o usa "Reinstalla componenti" nelle impostazioni) per installare drop-in e regole.</p></div>';
+			$this->print_notice( 'notice-error', esc_html__( 'WP Rocket is still active. Deactivate it, then activate SpeedKit again (or use "Reinstall components" in the settings) to install the drop-in and the rules.', 'speed-kit' ) );
 		} elseif ( 'dropin' === $conflict ) {
-			echo '<div class="notice notice-error"><p><strong>SpeedKit:</strong> è presente un advanced-cache.php di un altro plugin di cache. Rimuovilo e usa "Reinstalla componenti" nelle impostazioni di SpeedKit.</p></div>';
+			$this->print_notice( 'notice-error', esc_html__( 'An advanced-cache.php file from another cache plugin is present. Remove it and use "Reinstall components" in the SpeedKit settings.', 'speed-kit' ) );
 		}
 
 		// Other page cache plugins active at the same time.
 		$others = $this->active_cache_plugins();
 		if ( $others && 'wp-rocket' !== $conflict ) {
-			echo '<div class="notice notice-error"><p><strong>SpeedKit:</strong> sono attivi altri plugin di cache (' . esc_html( implode( ', ', $others ) ) . '). Due page cache insieme si sovrascrivono a vicenda: disattivane una.</p></div>';
+			$this->print_notice(
+				'notice-error',
+				esc_html(
+					sprintf(
+						/* translators: %s: comma-separated list of plugin names. */
+						__( 'Other cache plugins are active (%s). Two page caches overwrite each other: deactivate one of them.', 'speed-kit' ),
+						implode( ', ', $others )
+					)
+				)
+			);
 		}
 
-		// Stato drop-in: assente o versione diversa.
+		// Drop-in status: missing or a different version.
 		if ( ! $conflict && ! empty( $this->core->settings['cache_enabled'] ) ) {
 			if ( ! defined( 'SKIT_ADVANCED_CACHE' ) ) {
-				$url = wp_nonce_url( admin_url( 'admin-post.php?action=skit_reinstall' ), 'skit_reinstall' );
-				echo '<div class="notice notice-warning"><p><strong>SpeedKit:</strong> il drop-in advanced-cache.php non è attivo (WP_CACHE mancante o file assente): le pagine non vengono servite dalla cache. <a href="' . esc_url( $url ) . '">Reinstalla componenti</a>.</p></div>';
+				$this->print_notice( 'notice-warning', esc_html__( 'The advanced-cache.php drop-in is not active (WP_CACHE missing or file absent): pages are not served from the cache.', 'speed-kit' ) . ' ' . $reinstall_link . '.' );
 			} elseif ( SKIT_ADVANCED_CACHE !== SKIT_VERSION && defined( 'SKIT_ADVANCED_CACHE' ) ) {
-				// Auto-riparazione: dopo un aggiornamento del plugin il drop-in
-				// resta la copia vecchia; ricopiarlo è idempotente e senza rischi
-				// (install_dropin rifiuta i drop-in di altri plugin).
+				// Self-repair: after a plugin update the drop-in is still the old
+				// copy; copying it again is idempotent and safe (install_dropin
+				// refuses other plugins' drop-ins).
 				if ( SKIT_Activator::install_dropin() ) {
-					echo '<div class="notice notice-success"><p><strong>SpeedKit:</strong> drop-in advanced-cache.php aggiornato automaticamente dalla versione ' . esc_html( SKIT_ADVANCED_CACHE ) . ' alla ' . esc_html( SKIT_VERSION ) . '. Ricarica la pagina per confermare.</p></div>';
+					$this->print_notice(
+						'notice-success',
+						esc_html(
+							sprintf(
+								/* translators: 1: old drop-in version, 2: plugin version. */
+								__( 'advanced-cache.php drop-in updated automatically from version %1$s to %2$s. Reload the page to confirm.', 'speed-kit' ),
+								SKIT_ADVANCED_CACHE,
+								SKIT_VERSION
+							)
+						)
+					);
 				} else {
-					$url = wp_nonce_url( admin_url( 'admin-post.php?action=skit_reinstall' ), 'skit_reinstall' );
-					echo '<div class="notice notice-warning"><p><strong>SpeedKit:</strong> il drop-in advanced-cache.php (versione ' . esc_html( SKIT_ADVANCED_CACHE ) . ') non corrisponde al plugin (versione ' . esc_html( SKIT_VERSION ) . ') e la copia automatica non è riuscita: controlla i permessi di wp-content. <a href="' . esc_url( $url ) . '">Aggiorna i componenti</a>.</p></div>';
+					$this->print_notice(
+						'notice-warning',
+						esc_html(
+							sprintf(
+								/* translators: 1: drop-in version, 2: plugin version. */
+								__( 'The advanced-cache.php drop-in (version %1$s) does not match the plugin (version %2$s) and the automatic copy failed: check the permissions of wp-content.', 'speed-kit' ),
+								SKIT_ADVANCED_CACHE,
+								SKIT_VERSION
+							)
+						) . ' ' . $reinstall_link . '.'
+					);
 				}
 			}
 		}
 
 		if ( isset( $_GET['skit_msg'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			$messages = array(
-				'purged'      => 'Cache svuotata.',
-				'preload'     => 'Preload avviato: la cache verrà rigenerata in background.',
-				'saved'       => 'Impostazioni salvate. Cache svuotata e configurazione rigenerata.',
-				'reinstalled' => 'Componenti reinstallati (drop-in, WP_CACHE, regole .htaccess, config).',
-				'db_cleaned'  => 'Database ripulito.',
+				'purged'      => __( 'Cache purged.', 'speed-kit' ),
+				'preload'     => __( 'Preload started: the cache will be rebuilt in the background.', 'speed-kit' ),
+				'saved'       => __( 'Settings saved. Cache purged and configuration regenerated.', 'speed-kit' ),
+				'reinstalled' => __( 'Components reinstalled (drop-in, WP_CACHE, .htaccess rules, config).', 'speed-kit' ),
+				'db_cleaned'  => __( 'Database cleaned.', 'speed-kit' ),
 			);
 			$db_result = get_transient( 'skit_db_cleanup_result' );
 			if ( is_array( $db_result ) ) {
-				$parts = array();
-				foreach ( $db_result as $label => $count ) {
-					$parts[] = (int) $count . ' ' . $label;
+				$labels = array(
+					'revisions'          => __( 'revisions', 'speed-kit' ),
+					'auto_drafts'        => __( 'auto-drafts', 'speed-kit' ),
+					'trashed_posts'      => __( 'trashed posts', 'speed-kit' ),
+					'spam_comments'      => __( 'spam/trashed comments', 'speed-kit' ),
+					'expired_transients' => __( 'expired transients', 'speed-kit' ),
+				);
+				$parts  = array();
+				foreach ( $db_result as $key => $count ) {
+					$parts[] = (int) $count . ' ' . ( isset( $labels[ $key ] ) ? $labels[ $key ] : (string) $key );
 				}
-				$messages['db_cleaned'] = 'Database ripulito: ' . implode( ', ', $parts ) . '.';
+				/* translators: %s: comma-separated list such as "3 revisions, 1 auto-drafts". */
+				$messages['db_cleaned'] = sprintf( __( 'Database cleaned: %s.', 'speed-kit' ), implode( ', ', $parts ) );
 				delete_transient( 'skit_db_cleanup_result' );
 			}
 			$key = sanitize_key( wp_unslash( $_GET['skit_msg'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			if ( 'db_not_confirmed' === $key ) {
-				echo '<div class="notice notice-warning is-dismissible"><p><strong>SpeedKit:</strong> pulizia database non eseguita: spunta la casella di conferma.</p></div>';
+				$this->print_notice( 'notice-warning', esc_html__( 'Database cleanup not run: tick the confirmation checkbox.', 'speed-kit' ), true );
 			} elseif ( isset( $messages[ $key ] ) ) {
-				echo '<div class="notice notice-success is-dismissible"><p><strong>SpeedKit:</strong> ' . esc_html( $messages[ $key ] ) . '</p></div>';
+				$this->print_notice( 'notice-success', esc_html( $messages[ $key ] ), true );
 			}
 		}
 	}
@@ -267,17 +321,17 @@ class SKIT_Admin {
 		$known = (array) apply_filters(
 			'skit_conflicting_plugins',
 			array(
-				'w3-total-cache/w3-total-cache.php'        => 'W3 Total Cache',
-				'wp-super-cache/wp-cache.php'              => 'WP Super Cache',
-				'litespeed-cache/litespeed-cache.php'      => 'LiteSpeed Cache',
-				'wp-fastest-cache/wpFastestCache.php'      => 'WP Fastest Cache',
-				'breeze/breeze.php'                        => 'Breeze',
-				'cache-enabler/cache-enabler.php'          => 'Cache Enabler',
-				'comet-cache/comet-cache.php'              => 'Comet Cache',
+				'w3-total-cache/w3-total-cache.php'          => 'W3 Total Cache',
+				'wp-super-cache/wp-cache.php'                => 'WP Super Cache',
+				'litespeed-cache/litespeed-cache.php'        => 'LiteSpeed Cache',
+				'wp-fastest-cache/wpFastestCache.php'        => 'WP Fastest Cache',
+				'breeze/breeze.php'                          => 'Breeze',
+				'cache-enabler/cache-enabler.php'            => 'Cache Enabler',
+				'comet-cache/comet-cache.php'                => 'Comet Cache',
 				'hummingbird-performance/wp-hummingbird.php' => 'Hummingbird',
-				'sg-cachepress/sg-cachepress.php'          => 'Speed Optimizer (SiteGround)',
-				'wp-optimize/wp-optimize.php'              => 'WP-Optimize',
-				'swift-performance-lite/performance.php'   => 'Swift Performance Lite',
+				'sg-cachepress/sg-cachepress.php'            => 'Speed Optimizer (SiteGround)',
+				'wp-optimize/wp-optimize.php'                => 'WP-Optimize',
+				'swift-performance-lite/performance.php'     => 'Swift Performance Lite',
 			)
 		);
 
@@ -293,19 +347,19 @@ class SKIT_Admin {
 	}
 
 	/**
-	 * Link rapidi nella lista plugin.
+	 * Quick link in the plugin list.
 	 *
-	 * @param string[] $links Link esistenti.
+	 * @param string[] $links Existing links.
 	 * @return string[]
 	 */
 	public function action_links( $links ) {
-		array_unshift( $links, '<a href="' . esc_url( admin_url( 'options-general.php?page=speed-kit' ) ) . '">Impostazioni</a>' );
+		array_unshift( $links, '<a href="' . esc_url( admin_url( 'options-general.php?page=speed-kit' ) ) . '">' . esc_html__( 'Settings', 'speed-kit' ) . '</a>' );
 
 		return $links;
 	}
 
 	/* ---------------------------------------------------------------------
-	 * Pagina impostazioni
+	 * Settings page
 	 * ------------------------------------------------------------------ */
 
 	public function menu() {
@@ -313,7 +367,7 @@ class SKIT_Admin {
 	}
 
 	/**
-	 * Salvataggio impostazioni.
+	 * Saves the settings.
 	 */
 	public function handle_save_settings() {
 		$this->verify_action( 'skit_save_settings' );
@@ -336,7 +390,7 @@ class SKIT_Admin {
 		// Cookie names end up in .htaccess: strict character set.
 		$out['skip_cookies_extra'] = array_values( array_filter( array_map( array( 'SKIT_Config', 'sanitize_cookie_name' ), $out['skip_cookies_extra'] ) ) );
 
-		// Le regex utente non valide vengono scartate (stessa logica di WP Rocket).
+		// Invalid user regexes are dropped (same logic as WP Rocket).
 		foreach ( array( 'exclude_uris', 'defer_js_exclude', 'minify_css_exclude' ) as $regex_list ) {
 			$out[ $regex_list ] = array_values(
 				array_filter(
@@ -354,7 +408,7 @@ class SKIT_Admin {
 
 		update_option( SKIT_OPTION_KEY, $out );
 
-		// Rigenera tutto e riparte pulito.
+		// Regenerate everything and start clean.
 		SKIT_Config::write_config_file();
 		SKIT_Htaccess::write_rules( $out );
 		$purge = new SKIT_Purge( $out );
@@ -365,13 +419,13 @@ class SKIT_Admin {
 	}
 
 	/**
-	 * Textarea → array di righe pulite.
+	 * Textarea -> array of clean lines.
 	 *
-	 * Niente sanitize_text_field: mutilerebbe le regex utente (es. "<").
-	 * Le righe vengono solo ripulite da caratteri di controllo; le regex
-	 * non valide vengono comunque scartate dalla validazione preg a valle.
+	 * No sanitize_text_field(): it would mangle user regexes (e.g. "<").
+	 * Lines are only stripped of control characters; invalid regexes are
+	 * dropped anyway by the preg validation afterwards.
 	 *
-	 * @param string $raw Testo grezzo.
+	 * @param string $raw Raw text.
 	 * @return string[]
 	 */
 	private function sanitize_lines( $raw ) {
@@ -383,200 +437,226 @@ class SKIT_Admin {
 	}
 
 	/**
-	 * Render della pagina impostazioni.
+	 * Renders the settings page.
 	 */
 	public function render_page() {
 		$s = SKIT_Config::get_settings();
 
 		$lifespans = array(
-			0                     => 'Mai (solo purge automatico)',
-			HOUR_IN_SECONDS       => '1 ora',
-			5 * HOUR_IN_SECONDS   => '5 ore',
-			10 * HOUR_IN_SECONDS  => '10 ore (consigliato)',
-			DAY_IN_SECONDS        => '24 ore',
-			WEEK_IN_SECONDS       => '7 giorni',
+			0                    => __( 'Never (automatic purge only)', 'speed-kit' ),
+			HOUR_IN_SECONDS      => __( '1 hour', 'speed-kit' ),
+			5 * HOUR_IN_SECONDS  => __( '5 hours', 'speed-kit' ),
+			10 * HOUR_IN_SECONDS => __( '10 hours (recommended)', 'speed-kit' ),
+			DAY_IN_SECONDS       => __( '24 hours', 'speed-kit' ),
+			WEEK_IN_SECONDS      => __( '7 days', 'speed-kit' ),
 		);
 
+		$code  = array( 'code' => array() );
 		$stats = $this->cache_stats();
 		?>
 		<div class="wrap">
 			<h1>SpeedKit</h1>
-			<p>Cache pagine: <strong><?php echo (int) $stats['files']; ?></strong> file, <strong><?php echo esc_html( size_format( $stats['size'] ) ); ?></strong>.
-				Drop-in: <strong><?php echo defined( 'SKIT_ADVANCED_CACHE' ) ? 'attivo' : 'NON attivo'; ?></strong>.</p>
+			<p>
+				<?php
+				printf(
+					/* translators: 1: number of cached pages, 2: total size (e.g. "1 MB"). */
+					esc_html__( 'Page cache: %1$s files, %2$s.', 'speed-kit' ),
+					'<strong>' . (int) $stats['files'] . '</strong>',
+					'<strong>' . esc_html( size_format( $stats['size'] ) ) . '</strong>'
+				);
+				?>
+				<?php esc_html_e( 'Drop-in:', 'speed-kit' ); ?> <strong><?php echo defined( 'SKIT_ADVANCED_CACHE' ) ? esc_html__( 'active', 'speed-kit' ) : esc_html__( 'NOT active', 'speed-kit' ); ?></strong>.
+			</p>
 
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<input type="hidden" name="action" value="skit_save_settings">
 				<?php wp_nonce_field( 'skit_save_settings' ); ?>
 
-				<h2 class="title">Cache pagine</h2>
+				<h2 class="title"><?php esc_html_e( 'Page cache', 'speed-kit' ); ?></h2>
 				<table class="form-table" role="presentation">
 					<tr>
-						<th scope="row">Page cache</th>
+						<th scope="row"><?php esc_html_e( 'Page cache', 'speed-kit' ); ?></th>
 						<td>
-							<label><input type="checkbox" name="cache_enabled" value="1" <?php checked( $s['cache_enabled'] ); ?>> Abilita la cache su disco delle pagine</label>
+							<label><input type="checkbox" name="cache_enabled" value="1" <?php checked( $s['cache_enabled'] ); ?>> <?php esc_html_e( 'Enable the disk cache for pages', 'speed-kit' ); ?></label>
 						</td>
 					</tr>
 					<tr>
-						<th scope="row">Durata di vita</th>
+						<th scope="row"><?php esc_html_e( 'Lifespan', 'speed-kit' ); ?></th>
 						<td>
 							<select name="cache_lifespan">
 								<?php foreach ( $lifespans as $seconds => $label ) : ?>
 									<option value="<?php echo (int) $seconds; ?>" <?php selected( (int) $s['cache_lifespan'], $seconds ); ?>><?php echo esc_html( $label ); ?></option>
 								<?php endforeach; ?>
 							</select>
-							<p class="description">I file più vecchi vengono eliminati da un cron orario e rigenerati alla visita successiva (o dal preload).</p>
+							<p class="description"><?php esc_html_e( 'Older files are deleted by an hourly cron job and rebuilt on the next visit (or by the preload).', 'speed-kit' ); ?></p>
 						</td>
 					</tr>
 					<tr>
-						<th scope="row">Cache mobile separata</th>
+						<th scope="row"><?php esc_html_e( 'Separate mobile cache', 'speed-kit' ); ?></th>
 						<td>
-							<label><input type="checkbox" name="cache_mobile_separate" value="1" <?php checked( $s['cache_mobile_separate'] ); ?>> File separati per dispositivi mobili (serve solo con temi non responsive)</label>
+							<label><input type="checkbox" name="cache_mobile_separate" value="1" <?php checked( $s['cache_mobile_separate'] ); ?>> <?php esc_html_e( 'Separate files for mobile devices (only needed with non-responsive themes)', 'speed-kit' ); ?></label>
 						</td>
 					</tr>
 					<tr>
-						<th scope="row">URI esclusi</th>
+						<th scope="row"><?php esc_html_e( 'Excluded URIs', 'speed-kit' ); ?></th>
 						<td>
-							<textarea name="exclude_uris" rows="4" class="large-text code" placeholder="/carrello/&#10;/area-riservata/.*"><?php echo esc_textarea( implode( "\n", (array) $s['exclude_uris'] ) ); ?></textarea>
-							<p class="description">Una regex per riga, confrontata con il percorso dell'URL.</p>
+							<textarea name="exclude_uris" rows="4" class="large-text code" placeholder="/cart/&#10;/members/.*"><?php echo esc_textarea( implode( "\n", (array) $s['exclude_uris'] ) ); ?></textarea>
+							<p class="description"><?php esc_html_e( 'One regex per line, matched against the URL path.', 'speed-kit' ); ?></p>
 						</td>
 					</tr>
 					<tr>
-						<th scope="row">Parametri query ignorati</th>
+						<th scope="row"><?php esc_html_e( 'Ignored query parameters', 'speed-kit' ); ?></th>
 						<td>
-							<textarea name="ignored_query_params" rows="3" class="large-text code" placeholder="Vuoto = lista predefinita (utm_*, fbclid, gclid...)"><?php echo esc_textarea( implode( "\n", (array) $s['ignored_query_params'] ) ); ?></textarea>
-							<p class="description">URL con solo questi parametri ricevono la cache della pagina base. Vuoto = lista predefinita.</p>
+							<textarea name="ignored_query_params" rows="3" class="large-text code" placeholder="<?php esc_attr_e( 'Empty = default list (utm_*, fbclid, gclid...)', 'speed-kit' ); ?>"><?php echo esc_textarea( implode( "\n", (array) $s['ignored_query_params'] ) ); ?></textarea>
+							<p class="description"><?php esc_html_e( 'URLs that only carry these parameters get the cache of the base page. Empty = default list.', 'speed-kit' ); ?></p>
 						</td>
 					</tr>
 					<tr>
-						<th scope="row">Cookie che escludono dalla cache</th>
+						<th scope="row"><?php esc_html_e( 'Cookies that bypass the cache', 'speed-kit' ); ?></th>
 						<td>
-							<textarea name="skip_cookies_extra" rows="3" class="large-text code" placeholder="nome_cookie_"><?php echo esc_textarea( implode( "\n", (array) $s['skip_cookies_extra'] ) ); ?></textarea>
-							<p class="description">Un prefisso di nome cookie per riga, in aggiunta a quelli predefiniti (<code><?php echo esc_html( implode( ', ', SKIT_Config::default_skip_cookies() ) ); ?></code>). Chi ha uno di questi cookie non riceve né genera pagine in cache.</p>
+							<textarea name="skip_cookies_extra" rows="3" class="large-text code" placeholder="cookie_name_"><?php echo esc_textarea( implode( "\n", (array) $s['skip_cookies_extra'] ) ); ?></textarea>
+							<p class="description">
+								<?php
+								printf(
+									/* translators: %s: list of default cookie name prefixes. */
+									esc_html__( 'One cookie name prefix per line, in addition to the defaults (%s). Visitors carrying one of these cookies neither receive nor generate cached pages.', 'speed-kit' ),
+									'<code>' . esc_html( implode( ', ', SKIT_Config::default_skip_cookies() ) ) . '</code>'
+								);
+								?>
+							</p>
 						</td>
 					</tr>
 				</table>
 
-				<h2 class="title">Regole server (.htaccess)</h2>
+				<h2 class="title"><?php esc_html_e( 'Server rules (.htaccess)', 'speed-kit' ); ?></h2>
 				<table class="form-table" role="presentation">
 					<tr>
-						<th scope="row">Serve diretto</th>
+						<th scope="row"><?php esc_html_e( 'Direct serving', 'speed-kit' ); ?></th>
 						<td>
-							<label><input type="checkbox" name="htaccess_direct_serve" value="1" <?php checked( $s['htaccess_direct_serve'] ); ?>> Servi i file di cache direttamente da Apache senza avviare PHP (più veloce)</label>
+							<label><input type="checkbox" name="htaccess_direct_serve" value="1" <?php checked( $s['htaccess_direct_serve'] ); ?>> <?php esc_html_e( 'Serve cache files directly from Apache without starting PHP (faster)', 'speed-kit' ); ?></label>
 						</td>
 					</tr>
 					<tr>
-						<th scope="row">Browser cache</th>
+						<th scope="row"><?php esc_html_e( 'Browser cache', 'speed-kit' ); ?></th>
 						<td>
-							<label><input type="checkbox" name="htaccess_browser_cache" value="1" <?php checked( $s['htaccess_browser_cache'] ); ?>> Intestazioni Expires/Cache-Control per gli asset statici</label>
+							<label><input type="checkbox" name="htaccess_browser_cache" value="1" <?php checked( $s['htaccess_browser_cache'] ); ?>> <?php esc_html_e( 'Expires/Cache-Control headers for static assets', 'speed-kit' ); ?></label>
 						</td>
 					</tr>
 					<tr>
-						<th scope="row">Compressione gzip</th>
+						<th scope="row"><?php esc_html_e( 'Gzip compression', 'speed-kit' ); ?></th>
 						<td>
-							<label><input type="checkbox" name="htaccess_gzip" value="1" <?php checked( $s['htaccess_gzip'] ); ?>> Comprimi HTML, CSS, JS e font con mod_deflate</label>
+							<label><input type="checkbox" name="htaccess_gzip" value="1" <?php checked( $s['htaccess_gzip'] ); ?>> <?php esc_html_e( 'Compress HTML, CSS, JS and fonts with mod_deflate', 'speed-kit' ); ?></label>
 						</td>
 					</tr>
 				</table>
 
-				<h2 class="title">Ottimizzazioni</h2>
+				<h2 class="title"><?php esc_html_e( 'Optimizations', 'speed-kit' ); ?></h2>
 				<table class="form-table" role="presentation">
 					<tr>
-						<th scope="row">Minify HTML</th>
-						<td><label><input type="checkbox" name="minify_html" value="1" <?php checked( $s['minify_html'] ); ?>> Rimuovi spazi e commenti dall'HTML in cache</label></td>
+						<th scope="row"><?php esc_html_e( 'Minify HTML', 'speed-kit' ); ?></th>
+						<td><label><input type="checkbox" name="minify_html" value="1" <?php checked( $s['minify_html'] ); ?>> <?php esc_html_e( 'Remove whitespace and comments from the cached HTML', 'speed-kit' ); ?></label></td>
 					</tr>
 					<tr>
-						<th scope="row">Defer JavaScript</th>
+						<th scope="row"><?php esc_html_e( 'Defer JavaScript', 'speed-kit' ); ?></th>
 						<td>
-							<label><input type="checkbox" name="defer_js" value="1" <?php checked( $s['defer_js'] ); ?>> Carica gli script esterni con attributo <code>defer</code></label>
-							<textarea name="defer_js_exclude" rows="4" class="large-text code" placeholder="/wp-content/plugins/mio-plugin/(.*).js"><?php echo esc_textarea( implode( "\n", (array) $s['defer_js_exclude'] ) ); ?></textarea>
-							<p class="description">Esclusioni: una regex per riga sull'URL dello script. jQuery è escluso automaticamente.</p>
+							<label><input type="checkbox" name="defer_js" value="1" <?php checked( $s['defer_js'] ); ?>> <?php echo wp_kses( __( 'Load external scripts with the <code>defer</code> attribute', 'speed-kit' ), $code ); ?></label>
+							<textarea name="defer_js_exclude" rows="4" class="large-text code" placeholder="/wp-content/plugins/my-plugin/(.*).js"><?php echo esc_textarea( implode( "\n", (array) $s['defer_js_exclude'] ) ); ?></textarea>
+							<p class="description"><?php esc_html_e( 'Exclusions: one regex per line, matched against the script URL. jQuery is excluded automatically.', 'speed-kit' ); ?></p>
 						</td>
 					</tr>
 					<tr>
-						<th scope="row">Delay JavaScript</th>
+						<th scope="row"><?php esc_html_e( 'Delay JavaScript', 'speed-kit' ); ?></th>
 						<td>
-							<label><input type="checkbox" name="delay_js" value="1" <?php checked( $s['delay_js'] ); ?>> Rinvia l'esecuzione JS alla prima interazione (sostituisce il defer)</label>
-							<textarea name="delay_js_exclude" rows="3" class="large-text code" placeholder="stringa contenuta nel tag script da escludere"><?php echo esc_textarea( implode( "\n", (array) $s['delay_js_exclude'] ) ); ?></textarea>
-							<p class="description">Molto aggressivo: testa bene analytics, consensi e script critici. Esclusioni: una stringa per riga.</p>
+							<label><input type="checkbox" name="delay_js" value="1" <?php checked( $s['delay_js'] ); ?>> <?php esc_html_e( 'Delay JavaScript execution until the first interaction (replaces defer)', 'speed-kit' ); ?></label>
+							<textarea name="delay_js_exclude" rows="3" class="large-text code" placeholder="<?php esc_attr_e( 'text found in the script tag to exclude', 'speed-kit' ); ?>"><?php echo esc_textarea( implode( "\n", (array) $s['delay_js_exclude'] ) ); ?></textarea>
+							<p class="description"><?php esc_html_e( 'Very aggressive: test analytics, consent and critical scripts carefully. Exclusions: one string per line.', 'speed-kit' ); ?></p>
 						</td>
 					</tr>
 					<tr>
-						<th scope="row">Lazyload iframe</th>
-						<td><label><input type="checkbox" name="lazyload_iframes" value="1" <?php checked( $s['lazyload_iframes'] ); ?>> Aggiungi <code>loading="lazy"</code> agli iframe</label></td>
+						<th scope="row"><?php esc_html_e( 'Lazyload iframes', 'speed-kit' ); ?></th>
+						<td><label><input type="checkbox" name="lazyload_iframes" value="1" <?php checked( $s['lazyload_iframes'] ); ?>> <?php echo wp_kses( __( 'Add <code>loading="lazy"</code> to iframes', 'speed-kit' ), $code ); ?></label></td>
 					</tr>
 					<tr>
-						<th scope="row">DNS prefetch</th>
+						<th scope="row"><?php esc_html_e( 'DNS prefetch', 'speed-kit' ); ?></th>
 						<td>
 							<textarea name="dns_prefetch" rows="3" class="large-text code" placeholder="fonts.googleapis.com&#10;www.googletagmanager.com"><?php echo esc_textarea( implode( "\n", (array) $s['dns_prefetch'] ) ); ?></textarea>
-							<p class="description">Un host per riga: viene aggiunto <code>&lt;link rel="dns-prefetch"&gt;</code>.</p>
+							<p class="description"><?php echo wp_kses( __( 'One host per line: a <code>&lt;link rel="dns-prefetch"&gt;</code> is added for each.', 'speed-kit' ), $code ); ?></p>
 						</td>
 					</tr>
 				</table>
 
-				<h2 class="title">Media</h2>
+				<h2 class="title"><?php esc_html_e( 'Media', 'speed-kit' ); ?></h2>
 				<table class="form-table" role="presentation">
 					<tr>
-						<th scope="row">Lazyload immagini</th>
+						<th scope="row"><?php esc_html_e( 'Lazyload images', 'speed-kit' ); ?></th>
 						<td>
-							<label><input type="checkbox" name="lazyload_images" value="1" <?php checked( $s['lazyload_images'] ); ?>> Aggiungi <code>loading="lazy"</code> e <code>decoding="async"</code> alle immagini</label>
+							<label><input type="checkbox" name="lazyload_images" value="1" <?php checked( $s['lazyload_images'] ); ?>> <?php echo wp_kses( __( 'Add <code>loading="lazy"</code> and <code>decoding="async"</code> to images', 'speed-kit' ), $code ); ?></label>
 							<p>
-								<label>Salta le prime <input type="number" name="lazyload_skip_first" value="<?php echo (int) $s['lazyload_skip_first']; ?>" min="0" max="10" style="width:60px"> immagini</label>
+								<label>
+									<?php
+									printf(
+										/* translators: %s: number input. */
+										esc_html__( 'Skip the first %s images', 'speed-kit' ),
+										'<input type="number" name="lazyload_skip_first" value="' . (int) $s['lazyload_skip_first'] . '" min="0" max="10" style="width:60px">'
+									);
+									?>
+								</label>
 							</p>
-							<p class="description">Le prime immagini (logo, immagine in evidenza / LCP) devono caricarsi subito. Escludi singole immagini con la classe <code>skip-lazy</code>.</p>
+							<p class="description"><?php echo wp_kses( __( 'The first images (logo, featured image / LCP) must load right away. Images with <code>fetchpriority="high"</code> are never lazyloaded. Exclude single images with the <code>skip-lazy</code> class.', 'speed-kit' ), $code ); ?></p>
 						</td>
 					</tr>
 					<tr>
-						<th scope="row">Facade YouTube</th>
+						<th scope="row"><?php esc_html_e( 'YouTube facade', 'speed-kit' ); ?></th>
 						<td>
-							<label><input type="checkbox" name="youtube_facade" value="1" <?php checked( $s['youtube_facade'] ); ?>> Sostituisci gli iframe YouTube con la thumbnail; il player si carica solo al click</label>
-							<p class="description">Risparmia ~800 KB di JavaScript per ogni video incorporato.</p>
-						</td>
-					</tr>
-				</table>
-
-				<h2 class="title">Asset statici</h2>
-				<table class="form-table" role="presentation">
-					<tr>
-						<th scope="row">Minify CSS</th>
-						<td>
-							<label><input type="checkbox" name="minify_css" value="1" <?php checked( $s['minify_css'] ); ?>> Minifica i fogli di stile locali (i <code>.min.css</code> vengono saltati)</label>
-							<textarea name="minify_css_exclude" rows="2" class="large-text code" placeholder="regex sull'URL del CSS da escludere"><?php echo esc_textarea( implode( "\n", (array) $s['minify_css_exclude'] ) ); ?></textarea>
-						</td>
-					</tr>
-					<tr>
-						<th scope="row">Google Fonts</th>
-						<td><label><input type="checkbox" name="font_display_swap" value="1" <?php checked( $s['font_display_swap'] ); ?>> Aggiungi <code>display=swap</code> e preconnect a fonts.gstatic.com</label></td>
-					</tr>
-					<tr>
-						<th scope="row">Preload font</th>
-						<td>
-							<textarea name="preload_fonts" rows="2" class="large-text code" placeholder="/wp-content/themes/tema/fonts/titolo.woff2"><?php echo esc_textarea( implode( "\n", (array) $s['preload_fonts'] ) ); ?></textarea>
-							<p class="description">URL dei font critici (uno per riga): vengono precaricati con <code>&lt;link rel="preload"&gt;</code>.</p>
-						</td>
-					</tr>
-					<tr>
-						<th scope="row">Emoji</th>
-						<td><label><input type="checkbox" name="disable_emojis" value="1" <?php checked( $s['disable_emojis'] ); ?>> Rimuovi lo script emoji di WordPress (i browser le rendono nativamente)</label></td>
-					</tr>
-					<tr>
-						<th scope="row">Preload link</th>
-						<td>
-							<label><input type="checkbox" name="preload_links" value="1" <?php checked( $s['preload_links'] ); ?>> Prefetch delle pagine interne al passaggio del mouse sui link</label>
-							<p class="description">La navigazione successiva parte dalla cache del browser (stile instant.page).</p>
+							<label><input type="checkbox" name="youtube_facade" value="1" <?php checked( $s['youtube_facade'] ); ?>> <?php esc_html_e( 'Replace YouTube iframes with their thumbnail; the player loads only on click', 'speed-kit' ); ?></label>
+							<p class="description"><?php esc_html_e( 'The YouTube player and its scripts are not downloaded until the visitor clicks play. The thumbnail is loaded from i.ytimg.com and the player from youtube-nocookie.com.', 'speed-kit' ); ?></p>
 						</td>
 					</tr>
 				</table>
 
-				<h2 class="title">CDN</h2>
+				<h2 class="title"><?php esc_html_e( 'Static assets', 'speed-kit' ); ?></h2>
 				<table class="form-table" role="presentation">
 					<tr>
-						<th scope="row">Riscrittura URL</th>
+						<th scope="row"><?php esc_html_e( 'Minify CSS', 'speed-kit' ); ?></th>
 						<td>
-							<label><input type="checkbox" name="cdn_enabled" value="1" <?php checked( $s['cdn_enabled'] ); ?>> Servi gli asset statici da un host CDN</label>
+							<label><input type="checkbox" name="minify_css" value="1" <?php checked( $s['minify_css'] ); ?>> <?php echo wp_kses( __( 'Minify local stylesheets (<code>.min.css</code> files are skipped)', 'speed-kit' ), $code ); ?></label>
+							<textarea name="minify_css_exclude" rows="2" class="large-text code" placeholder="<?php esc_attr_e( 'regex on the URL of the CSS file to exclude', 'speed-kit' ); ?>"><?php echo esc_textarea( implode( "\n", (array) $s['minify_css_exclude'] ) ); ?></textarea>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Google Fonts', 'speed-kit' ); ?></th>
+						<td><label><input type="checkbox" name="font_display_swap" value="1" <?php checked( $s['font_display_swap'] ); ?>> <?php echo wp_kses( __( 'Add <code>display=swap</code> and a preconnect to fonts.gstatic.com', 'speed-kit' ), $code ); ?></label></td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Preload fonts', 'speed-kit' ); ?></th>
+						<td>
+							<textarea name="preload_fonts" rows="2" class="large-text code" placeholder="/wp-content/themes/my-theme/fonts/heading.woff2"><?php echo esc_textarea( implode( "\n", (array) $s['preload_fonts'] ) ); ?></textarea>
+							<p class="description"><?php echo wp_kses( __( 'URLs of critical fonts (one per line): they are preloaded with <code>&lt;link rel="preload"&gt;</code>.', 'speed-kit' ), $code ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Emoji', 'speed-kit' ); ?></th>
+						<td><label><input type="checkbox" name="disable_emojis" value="1" <?php checked( $s['disable_emojis'] ); ?>> <?php esc_html_e( 'Remove the WordPress emoji script (browsers render emoji natively)', 'speed-kit' ); ?></label></td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Preload links', 'speed-kit' ); ?></th>
+						<td>
+							<label><input type="checkbox" name="preload_links" value="1" <?php checked( $s['preload_links'] ); ?>> <?php esc_html_e( 'Prefetch internal pages when the mouse hovers a link', 'speed-kit' ); ?></label>
+							<p class="description"><?php echo wp_kses( __( 'The next navigation starts from the browser cache (instant.page style). Links with a query string, <code>rel="nofollow"</code>, <code>download</code> or <code>data-no-prefetch</code> are skipped.', 'speed-kit' ), $code ); ?></p>
+						</td>
+					</tr>
+				</table>
+
+				<h2 class="title"><?php esc_html_e( 'CDN', 'speed-kit' ); ?></h2>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><?php esc_html_e( 'URL rewriting', 'speed-kit' ); ?></th>
+						<td>
+							<label><input type="checkbox" name="cdn_enabled" value="1" <?php checked( $s['cdn_enabled'] ); ?>> <?php esc_html_e( 'Serve static assets from a CDN host', 'speed-kit' ); ?></label>
 							<p>
-								<input type="text" name="cdn_host" value="<?php echo esc_attr( $s['cdn_host'] ); ?>" class="regular-text code" placeholder="cdn.tuosito.it">
+								<input type="text" name="cdn_host" value="<?php echo esc_attr( $s['cdn_host'] ); ?>" class="regular-text code" placeholder="cdn.example.com">
 							</p>
-							<p class="description">Solo l'hostname del CDN/pull-zone. Vengono riscritti gli URL sotto <code>/wp-content/</code> e <code>/wp-includes/</code>.</p>
+							<p class="description"><?php echo wp_kses( __( 'Only the hostname of the CDN / pull zone. URLs under <code>/wp-content/</code> and <code>/wp-includes/</code> are rewritten.', 'speed-kit' ), $code ); ?></p>
 						</td>
 					</tr>
 				</table>
@@ -611,56 +691,58 @@ class SKIT_Admin {
 					</tr>
 				</table>
 
-				<h2 class="title">Database</h2>
+				<h2 class="title"><?php esc_html_e( 'Database', 'speed-kit' ); ?></h2>
 				<table class="form-table" role="presentation">
 					<tr>
-						<th scope="row">Pulizia automatica</th>
+						<th scope="row"><?php esc_html_e( 'Automatic cleanup', 'speed-kit' ); ?></th>
 						<td>
-							<label><input type="checkbox" name="db_auto_cleanup" value="1" <?php checked( $s['db_auto_cleanup'] ); ?>> Pulizia settimanale: revisioni, bozze automatiche, cestino, spam, transient scaduti</label>
-							<p class="description">Attenzione: revisioni e cestino vengono eliminati definitivamente. Puoi anche lanciarla manualmente dagli Strumenti qui sotto.</p>
+							<label><input type="checkbox" name="db_auto_cleanup" value="1" <?php checked( $s['db_auto_cleanup'] ); ?>> <?php esc_html_e( 'Weekly cleanup: revisions, auto-drafts older than 7 days, trash, spam, expired transients', 'speed-kit' ); ?></label>
+							<p class="description"><?php esc_html_e( 'Warning: revisions and trashed items are deleted permanently. You can also run it manually from the Tools below.', 'speed-kit' ); ?></p>
 						</td>
 					</tr>
 				</table>
 
-				<h2 class="title">Preload</h2>
+				<h2 class="title"><?php esc_html_e( 'Preload', 'speed-kit' ); ?></h2>
 				<table class="form-table" role="presentation">
 					<tr>
-						<th scope="row">Preload automatico</th>
+						<th scope="row"><?php esc_html_e( 'Automatic preload', 'speed-kit' ); ?></th>
 						<td>
-							<label><input type="checkbox" name="preload_enabled" value="1" <?php checked( $s['preload_enabled'] ); ?>> Rigenera la cache dalla sitemap dopo ogni svuotamento completo</label>
+							<label><input type="checkbox" name="preload_enabled" value="1" <?php checked( $s['preload_enabled'] ); ?>> <?php esc_html_e( 'Rebuild the cache from the sitemap after every full purge', 'speed-kit' ); ?></label>
 						</td>
 					</tr>
 					<tr>
-						<th scope="row">URL sitemap</th>
+						<th scope="row"><?php esc_html_e( 'Sitemap URL', 'speed-kit' ); ?></th>
 						<td>
 							<input type="url" name="preload_sitemap" value="<?php echo esc_attr( $s['preload_sitemap'] ); ?>" class="regular-text code" placeholder="<?php echo esc_attr( home_url( '/sitemap_index.xml' ) ); ?>">
-							<p class="description">Vuoto = rilevamento automatico (sitemap_index.xml, sitemap.xml, wp-sitemap.xml).</p>
+							<p class="description"><?php esc_html_e( 'Empty = automatic detection (sitemap_index.xml, sitemap.xml, wp-sitemap.xml).', 'speed-kit' ); ?></p>
 						</td>
 					</tr>
 				</table>
 
-				<?php submit_button( 'Salva impostazioni' ); ?>
+				<?php submit_button( __( 'Save settings', 'speed-kit' ) ); ?>
 			</form>
 
-			<h2 class="title">Strumenti</h2>
+			<h2 class="title"><?php esc_html_e( 'Tools', 'speed-kit' ); ?></h2>
 			<p>
-				<a class="button" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=skit_purge_all' ), 'skit_purge_all' ) ); ?>">Svuota tutta la cache</a>
-				<a class="button" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=skit_preload' ), 'skit_preload' ) ); ?>">Avvia preload</a>
-				<a class="button" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=skit_reinstall' ), 'skit_reinstall' ) ); ?>">Reinstalla componenti</a>
+				<a class="button" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=skit_purge_all' ), 'skit_purge_all' ) ); ?>"><?php esc_html_e( 'Purge all cache', 'speed-kit' ); ?></a>
+				<a class="button" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=skit_preload' ), 'skit_preload' ) ); ?>"><?php esc_html_e( 'Start preload', 'speed-kit' ); ?></a>
+				<a class="button" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=skit_reinstall' ), 'skit_reinstall' ) ); ?>"><?php esc_html_e( 'Reinstall components', 'speed-kit' ); ?></a>
 			</p>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" onsubmit="return confirm('Eliminare definitivamente revisioni, cestino, spam e transient scaduti?');">
+			<p class="description"><?php esc_html_e( '"Reinstall components" rewrites the advanced-cache.php drop-in, WP_CACHE, the .htaccess rules and the configuration file.', 'speed-kit' ); ?></p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" onsubmit="return confirm(<?php echo esc_attr( wp_json_encode( __( 'Permanently delete revisions, old auto-drafts, trash, spam and expired transients?', 'speed-kit' ) ) ); ?>);">
 				<input type="hidden" name="action" value="skit_db_cleanup">
 				<?php wp_nonce_field( 'skit_db_cleanup' ); ?>
-				<label><input type="checkbox" name="skit_confirm_db" value="1" required> Ho capito che revisioni, bozze automatiche vecchie, cestino, spam e transient scaduti vengono eliminati definitivamente.</label>
-				<?php submit_button( 'Pulisci database ora', 'secondary', 'submit', false ); ?>
+				<p>
+					<label><input type="checkbox" name="skit_confirm_db" value="1" required> <?php esc_html_e( 'I understand that revisions, auto-drafts older than 7 days, trashed posts, spam/trashed comments and expired transients are deleted permanently.', 'speed-kit' ); ?></label>
+				</p>
+				<?php submit_button( __( 'Clean up database now', 'speed-kit' ), 'secondary', 'submit', false ); ?>
 			</form>
-			<p class="description">"Reinstalla componenti" riscrive drop-in advanced-cache.php, WP_CACHE, regole .htaccess e file di configurazione.</p>
 		</div>
 		<?php
 	}
 
 	/**
-	 * Conteggio file e dimensione della cache.
+	 * Number of cached pages and their size.
 	 *
 	 * @return array{files:int,size:int}
 	 */
@@ -671,8 +753,10 @@ class SKIT_Admin {
 			$items = new RecursiveIteratorIterator(
 				new RecursiveDirectoryIterator( SKIT_CACHE_DIR, FilesystemIterator::SKIP_DOTS )
 			);
+			$root = untrailingslashit( wp_normalize_path( SKIT_CACHE_DIR ) );
 			foreach ( $items as $item ) {
-				if ( $item->isFile() && 'html' === strtolower( $item->getExtension() ) ) {
+				// The empty index.html in the cache root only prevents listing.
+				if ( $item->isFile() && 'html' === strtolower( $item->getExtension() ) && wp_normalize_path( $item->getPath() ) !== $root ) {
 					$files++;
 					$size += $item->getSize();
 				}

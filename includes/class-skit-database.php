@@ -1,8 +1,8 @@
 <?php
 /**
- * Database — Pulizia del database: revisioni, bozze automatiche, cestino,
- * commenti spam/cestinati, transient scaduti. Equivalente della scheda
- * Database di WP Rocket, con cron settimanale opzionale.
+ * Database — Database cleanup: revisions, auto-drafts, trashed posts,
+ * spam/trashed comments, expired transients. Equivalent of WP Rocket's
+ * Database tab, with an optional weekly cron.
  *
  * @package SpeedKit
  */
@@ -16,7 +16,7 @@ class SKIT_Database {
 	const CRON_HOOK = 'skit_db_cleanup';
 
 	/**
-	 * Impostazioni correnti.
+	 * Current settings.
 	 *
 	 * @var array
 	 */
@@ -27,11 +27,19 @@ class SKIT_Database {
 	}
 
 	/**
-	 * Registra il cron settimanale se abilitato.
+	 * Registers the weekly cron when enabled.
 	 */
 	public function init() {
 		add_action( self::CRON_HOOK, array( $this, 'cleanup' ) );
+		// On init, not plugins_loaded: wp_schedule_event() runs the
+		// cron_schedules filters, whose labels are translated strings.
+		add_action( 'init', array( $this, 'schedule' ) );
+	}
 
+	/**
+	 * Schedules or clears the weekly cleanup event according to the settings.
+	 */
+	public function schedule() {
 		if ( ! empty( $this->settings['db_auto_cleanup'] ) ) {
 			if ( ! wp_next_scheduled( self::CRON_HOOK ) ) {
 				wp_schedule_event( time() + DAY_IN_SECONDS, 'weekly', self::CRON_HOOK );
@@ -42,8 +50,11 @@ class SKIT_Database {
 	}
 
 	/**
-	 * Esegue la pulizia. Restituisce il conteggio delle righe rimosse
-	 * per voce (usato dalla pagina admin).
+	 * Runs the cleanup. Returns the number of removed items per type
+	 * (shown on the admin page).
+	 *
+	 * Keys: revisions, auto_drafts, trashed_posts, spam_comments,
+	 * expired_transients.
 	 *
 	 * @return array<string,int>
 	 */
@@ -52,14 +63,14 @@ class SKIT_Database {
 
 		$results = array();
 
-		// Revisioni.
+		// Revisions.
 		$ids = $wpdb->get_col( "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'revision'" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		foreach ( $ids as $id ) {
 			wp_delete_post_revision( (int) $id );
 		}
-		$results['revisioni'] = count( $ids );
+		$results['revisions'] = count( $ids );
 
-		// Bozze automatiche.
+		// Auto-drafts.
 		// Only auto-drafts older than 7 days, like core's wp_delete_auto_drafts():
 		// a fresh auto-draft is a post someone is writing right now.
 		$ids = $wpdb->get_col( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
@@ -71,23 +82,23 @@ class SKIT_Database {
 		foreach ( $ids as $id ) {
 			wp_delete_post( (int) $id, true );
 		}
-		$results['bozze automatiche'] = count( $ids );
+		$results['auto_drafts'] = count( $ids );
 
-		// Post nel cestino.
+		// Trashed posts.
 		$ids = $wpdb->get_col( "SELECT ID FROM {$wpdb->posts} WHERE post_status = 'trash'" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		foreach ( $ids as $id ) {
 			wp_delete_post( (int) $id, true );
 		}
-		$results['post nel cestino'] = count( $ids );
+		$results['trashed_posts'] = count( $ids );
 
-		// Commenti spam e cestinati.
+		// Spam and trashed comments.
 		$ids = $wpdb->get_col( "SELECT comment_ID FROM {$wpdb->comments} WHERE comment_approved IN ('spam','trash')" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		foreach ( $ids as $id ) {
 			wp_delete_comment( (int) $id, true );
 		}
-		$results['commenti spam/cestino'] = count( $ids );
+		$results['spam_comments'] = count( $ids );
 
-		// Transient scaduti (le coppie _transient_ / _transient_timeout_).
+		// Expired transients (the _transient_ / _transient_timeout_ pairs).
 		$expired = $wpdb->get_col( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 			$wpdb->prepare(
 				"SELECT option_name FROM {$wpdb->options}
@@ -100,10 +111,10 @@ class SKIT_Database {
 			$key = str_replace( '_transient_timeout_', '', $timeout_key );
 			delete_transient( $key );
 		}
-		$results['transient scaduti'] = count( $expired );
+		$results['expired_transients'] = count( $expired );
 
 		/**
-		 * Scatta a pulizia completata.
+		 * Fires when the cleanup is done.
 		 *
 		 * @param array<string,int> $results
 		 */

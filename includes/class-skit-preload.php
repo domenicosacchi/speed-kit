@@ -1,10 +1,10 @@
 <?php
 /**
- * Preload — Rigenera la cache visitando gli URL della sitemap.
+ * Preload — Rebuilds the cache by visiting the URLs of the sitemap.
  *
- * Versione leggera del preload di WP Rocket: coda di URL in un'opzione,
- * processata a lotti da un evento cron ricorrente. Parte dopo un purge
- * completo o manualmente dall'admin.
+ * A lightweight version of WP Rocket's preload: a URL queue stored in an
+ * option, processed in batches by a recurring cron event. Starts after a
+ * full purge or manually from the admin.
  *
  * @package SpeedKit
  */
@@ -20,7 +20,7 @@ class SKIT_Preload {
 	const BATCH_SIZE   = 10;
 
 	/**
-	 * Impostazioni correnti.
+	 * Current settings.
 	 *
 	 * @var array
 	 */
@@ -31,18 +31,20 @@ class SKIT_Preload {
 	}
 
 	/**
-	 * Registra hook e cron.
+	 * Registers hooks and cron.
 	 */
 	public function init() {
-		// L'intervallo custom va registrato sempre: eventi già schedulati
-		// devono poterlo risolvere anche se il preload viene disattivato.
+		// The custom interval is always registered: already scheduled events
+		// must resolve it even when the preload gets disabled.
 		add_filter(
 			'cron_schedules', // phpcs:ignore WordPress.WP.CronInterval.CronSchedulesInterval
 			function ( $schedules ) {
 				if ( ! isset( $schedules['skit_minute'] ) ) {
 					$schedules['skit_minute'] = array(
 						'interval' => MINUTE_IN_SECONDS,
-						'display'  => 'Ogni minuto (SpeedKit preload)',
+						// Translated only once translations may load (WordPress 6.7+
+						// warns when a text domain is loaded before after_setup_theme).
+						'display'  => did_action( 'after_setup_theme' ) ? __( 'Every minute (SpeedKit preload)', 'speed-kit' ) : 'Every minute (SpeedKit preload)',
 					);
 				}
 				return $schedules;
@@ -50,7 +52,7 @@ class SKIT_Preload {
 		);
 
 		if ( empty( $this->settings['preload_enabled'] ) ) {
-			// Ripulisce eventuali eventi rimasti schedulati.
+			// Clears any event left scheduled.
 			if ( wp_next_scheduled( self::CRON_HOOK ) ) {
 				wp_clear_scheduled_hook( self::CRON_HOOK );
 				delete_option( self::QUEUE_OPTION );
@@ -65,9 +67,9 @@ class SKIT_Preload {
 	}
 
 	/**
-	 * Pianifica l'avvio del preload in background: il parsing della sitemap
-	 * fa richieste HTTP bloccanti e non deve girare dentro una richiesta
-	 * admin (salvataggio impostazioni, cambio menu, ecc.).
+	 * Schedules the preload start in the background: parsing the sitemap
+	 * makes blocking HTTP requests and must not run inside an admin request
+	 * (settings save, menu change, etc.).
 	 */
 	public function schedule_start() {
 		if ( ! wp_next_scheduled( 'skit_preload_start' ) ) {
@@ -76,7 +78,7 @@ class SKIT_Preload {
 	}
 
 	/**
-	 * Avvia un preload completo: raccoglie gli URL dalla sitemap e accoda.
+	 * Starts a full preload: collects the URLs from the sitemap and queues them.
 	 */
 	public function start() {
 		$urls = $this->collect_urls();
@@ -92,11 +94,11 @@ class SKIT_Preload {
 	}
 
 	/**
-	 * Dopo il purge di un post: rigenera subito i primi URL (permalink e home)
-	 * senza attendere il giro di cron.
+	 * After a post purge: rebuilds the first URLs (permalink and home)
+	 * right away instead of waiting for cron.
 	 *
-	 * @param WP_Post  $post Post ripulito.
-	 * @param string[] $urls URL ripuliti.
+	 * @param WP_Post  $post Purged post.
+	 * @param string[] $urls Purged URLs.
 	 */
 	public function preload_urls_now( $post, $urls ) {
 		foreach ( array_slice( (array) $urls, 0, 3 ) as $url ) {
@@ -105,7 +107,7 @@ class SKIT_Preload {
 	}
 
 	/**
-	 * Cron: processa un lotto di URL dalla coda.
+	 * Cron: processes one batch of URLs from the queue.
 	 */
 	public function process_batch() {
 		$queue = get_option( self::QUEUE_OPTION, array() );
@@ -116,7 +118,7 @@ class SKIT_Preload {
 		}
 
 		/**
-		 * Dimensione del lotto di preload per ogni giro di cron.
+		 * Preload batch size for each cron run.
 		 *
 		 * @param int $batch_size
 		 */
@@ -127,9 +129,9 @@ class SKIT_Preload {
 
 		foreach ( $batch as $url ) {
 			$this->fetch( (string) $url );
-			usleep( 500000 ); // 0,5s tra le richieste per non saturare il server.
+			usleep( 500000 ); // 0.5 s between requests to avoid overloading the server.
 
-			// Con cache mobile separata serve anche la variante mobile.
+			// With a separate mobile cache the mobile variant is needed too.
 			if ( ! empty( $this->settings['cache_mobile_separate'] ) ) {
 				$this->fetch( (string) $url, true );
 				usleep( 500000 );
@@ -138,17 +140,17 @@ class SKIT_Preload {
 	}
 
 	/**
-	 * Esegue la richiesta HTTP che fa generare la cache.
+	 * Sends the HTTP request that makes the page generate its cache file.
 	 *
-	 * @param string $url    URL da precaricare.
-	 * @param bool   $mobile True per simulare uno user agent mobile.
+	 * @param string $url    URL to preload.
+	 * @param bool   $mobile True to simulate a mobile user agent.
 	 */
 	private function fetch( $url, $mobile = false ) {
 		if ( '' === $url ) {
 			return;
 		}
 
-		// Salta se il file di cache esiste già.
+		// Skip when the cache file already exists.
 		$dir      = SKIT_Purge::url_to_cache_dir( $url );
 		$suffix   = $mobile ? '-mobile' : '';
 		$is_https = 0 === strpos( $url, 'https://' );
@@ -170,7 +172,7 @@ class SKIT_Preload {
 	}
 
 	/**
-	 * Raccoglie gli URL dalla sitemap (con ricorsione sugli indici).
+	 * Collects the URLs from the sitemap (recursing into sitemap indexes).
 	 *
 	 * @return string[]
 	 */
@@ -181,7 +183,7 @@ class SKIT_Preload {
 		if ( ! empty( $this->settings['preload_sitemap'] ) ) {
 			$sitemaps[] = (string) $this->settings['preload_sitemap'];
 		} else {
-			// Candidati standard: Yoast/RankMath/SEOPress, core WP.
+			// Standard candidates: Yoast/RankMath/SEOPress, WordPress core.
 			$sitemaps = array(
 				home_url( '/sitemap_index.xml' ),
 				home_url( '/sitemap.xml' ),
@@ -190,7 +192,7 @@ class SKIT_Preload {
 		}
 
 		/**
-		 * Filtra la lista di sitemap da cui precaricare.
+		 * Filters the list of sitemaps to preload from.
 		 *
 		 * @param string[] $sitemaps
 		 */
@@ -200,12 +202,12 @@ class SKIT_Preload {
 			$found = $this->parse_sitemap( (string) $sitemap, 0 );
 			if ( $found ) {
 				$urls = array_merge( $urls, $found );
-				break; // Basta la prima sitemap valida.
+				break; // The first valid sitemap is enough.
 			}
 		}
 
-		// Normalizza allo schema del sito: sitemap con URL http su sito
-		// https produrrebbero solo redirect (il fetch non-bloccante non li segue).
+		// Normalize to the site scheme: http URLs in a sitemap of an https site
+		// would only produce redirects (the non-blocking fetch does not follow them).
 		$scheme = (string) wp_parse_url( home_url(), PHP_URL_SCHEME );
 		$urls   = array_map(
 			function ( $url ) use ( $scheme ) {
@@ -214,7 +216,7 @@ class SKIT_Preload {
 			$urls
 		);
 
-		// Solo URL dello stesso host, deduplicati.
+		// Same-host URLs only, de-duplicated.
 		$host = wp_parse_url( home_url(), PHP_URL_HOST );
 		$urls = array_filter(
 			array_unique( $urls ),
@@ -224,7 +226,7 @@ class SKIT_Preload {
 		);
 
 		/**
-		 * Filtra gli URL accodati per il preload.
+		 * Filters the URLs queued for the preload.
 		 *
 		 * @param string[] $urls
 		 */
@@ -232,10 +234,10 @@ class SKIT_Preload {
 	}
 
 	/**
-	 * Scarica e interpreta una sitemap XML; ricorre negli indici di sitemap.
+	 * Downloads and parses an XML sitemap; recurses into sitemap indexes.
 	 *
-	 * @param string $url   URL della sitemap.
-	 * @param int    $depth Profondità di ricorsione corrente.
+	 * @param string $url   Sitemap URL.
+	 * @param int    $depth Current recursion depth.
 	 * @return string[]
 	 */
 	private function parse_sitemap( $url, $depth ) {

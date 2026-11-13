@@ -1,8 +1,9 @@
 <?php
 /**
- * Optimize — Ottimizzazioni dell'HTML applicate al buffer prima del
- * salvataggio in cache (filtro skit_buffer): minify HTML, defer JS con
- * esclusioni, delay JS alla prima interazione, lazyload iframe, dns-prefetch.
+ * Optimize — HTML optimizations applied to the buffer before it is saved
+ * to the cache (skit_buffer filter): HTML minify, JS defer with
+ * exclusions, JS delay until the first interaction, iframe lazyload,
+ * dns-prefetch.
  *
  * @package SpeedKit
  */
@@ -14,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class SKIT_Optimize {
 
 	/**
-	 * Impostazioni correnti.
+	 * Current settings.
 	 *
 	 * @var array
 	 */
@@ -25,17 +26,17 @@ class SKIT_Optimize {
 	}
 
 	/**
-	 * Registra il filtro sul buffer di pagina.
+	 * Registers the page buffer filter.
 	 */
 	public function init() {
 		add_filter( 'skit_buffer', array( $this, 'optimize' ) );
 	}
 
 	/**
-	 * Applica le ottimizzazioni abilitate, in quest'ordine:
-	 * defer/delay JS → lazyload → resource hints → minify.
+	 * Applies the enabled optimizations, in this order:
+	 * defer/delay JS -> lazyload -> resource hints -> minify.
 	 *
-	 * @param string $html Buffer della pagina.
+	 * @param string $html Page buffer.
 	 * @return string
 	 */
 	public function optimize( $html ) {
@@ -70,9 +71,9 @@ class SKIT_Optimize {
 	 * ------------------------------------------------------------------ */
 
 	/**
-	 * Aggiunge l'attributo defer agli script esterni non esclusi.
-	 * Equivalente della "Load JavaScript deferred" di WP Rocket, con il
-	 * filtro di esclusione skit_exclude_defer_js (come rocket_exclude_defer_js).
+	 * Adds the defer attribute to external scripts that are not excluded.
+	 * Equivalent of WP Rocket's "Load JavaScript deferred", with the
+	 * skit_exclude_defer_js exclusion filter (like rocket_exclude_defer_js).
 	 *
 	 * @param string $html HTML.
 	 * @return string
@@ -85,7 +86,7 @@ class SKIT_Optimize {
 			function ( $matches ) use ( $exclusions ) {
 				$attrs = $matches[1];
 
-				// Solo script con src (non data-src), non già defer/async, tipo JavaScript.
+				// Only scripts with src (not data-src), not already defer/async, JavaScript type.
 				if ( ! preg_match( '/(?<![\w-])src\s*=/i', $attrs ) ) {
 					return $matches[0];
 				}
@@ -113,13 +114,13 @@ class SKIT_Optimize {
 	}
 
 	/**
-	 * Pattern esclusi dal defer (regex parziali sull'URL dello script).
+	 * Patterns excluded from defer (partial regexes on the script URL).
 	 *
 	 * @return string[]
 	 */
 	private function defer_exclusions() {
 		$defaults = array(
-			// jQuery non differito: gli inline script che usano $ girano subito.
+			// jQuery is not deferred: inline scripts using $ run immediately.
 			'/jquery(?:\.min)?(?:-[0-9.]+)*(?:\.min)?\.js',
 			'/jquery-migrate(?:\.min)?\.js',
 			'lazyload',
@@ -129,7 +130,7 @@ class SKIT_Optimize {
 		$custom = array_filter( array_map( 'trim', (array) $this->settings['defer_js_exclude'] ) );
 
 		/**
-		 * Filtra i pattern esclusi dal defer. Equivalente di rocket_exclude_defer_js.
+		 * Filters the patterns excluded from defer. Equivalent of rocket_exclude_defer_js.
 		 *
 		 * @param string[] $exclusions
 		 */
@@ -141,10 +142,10 @@ class SKIT_Optimize {
 	 * ------------------------------------------------------------------ */
 
 	/**
-	 * Rinvia l'esecuzione degli script alla prima interazione utente
-	 * (mousemove, tocco, scroll, tasto). Equivalente della "Delay JavaScript
-	 * execution" di WP Rocket: il type viene sostituito e un piccolo loader
-	 * ripristina gli script in ordine al primo evento.
+	 * Delays script execution until the first user interaction (mouse move,
+	 * touch, scroll, key press). Equivalent of WP Rocket's "Delay
+	 * JavaScript execution": the type is replaced and a small loader
+	 * restores the scripts in order on the first event.
 	 *
 	 * @param string $html HTML.
 	 * @return string
@@ -157,7 +158,7 @@ class SKIT_Optimize {
 			function ( $matches ) use ( $exclusions ) {
 				$attrs = $matches[1];
 
-				// Salta tipi non-JS (JSON-LD, template) e moduli.
+				// Skip non-JS types (JSON-LD, templates) and modules.
 				if ( preg_match( '/(?<![\w-])type\s*=\s*["\']?([^"\'\s>]+)/i', $attrs, $type ) &&
 					! in_array( strtolower( $type[1] ), array( 'text/javascript', 'application/javascript' ), true ) ) {
 					return $matches[0];
@@ -170,7 +171,7 @@ class SKIT_Optimize {
 					}
 				}
 
-				// Sostituisce/aggiunge il type per bloccare l'esecuzione.
+				// Replace/add the type to block execution.
 				if ( isset( $type[0] ) ) {
 					$attrs = preg_replace( '/(?<![\w-])type\s*=\s*["\']?[^"\'\s>]+["\']?/i', 'type="skit/delay-js"', $attrs );
 				} else {
@@ -182,15 +183,15 @@ class SKIT_Optimize {
 			$html
 		);
 
-		// Gli inline script esclusi che usano jQuery girerebbero prima di
-		// jQuery se questo è ritardato: rischio accettato, come in WP Rocket
-		// (si risolve aggiungendo esclusioni).
+		// Excluded inline scripts that use jQuery would run before jQuery
+		// when jQuery is delayed: accepted risk, as in WP Rocket (fixed by
+		// adding exclusions).
 
 		return $this->inject_before_body_end( $html, $this->delay_loader_script() );
 	}
 
 	/**
-	 * Stringhe che escludono uno script dal delay (match sull'intero tag).
+	 * Strings that exclude a script from the delay (matched against the opening tag).
 	 *
 	 * @return string[]
 	 */
@@ -204,7 +205,7 @@ class SKIT_Optimize {
 		$custom = array_filter( array_map( 'trim', (array) $this->settings['delay_js_exclude'] ) );
 
 		/**
-		 * Filtra le esclusioni dal delay JS. Equivalente di rocket_delay_js_exclusions.
+		 * Filters the JS delay exclusions. Equivalent of rocket_delay_js_exclusions.
 		 *
 		 * @param string[] $exclusions
 		 */
@@ -212,8 +213,8 @@ class SKIT_Optimize {
 	}
 
 	/**
-	 * Loader che ripristina gli script ritardati alla prima interazione,
-	 * preservando l'ordine di esecuzione.
+	 * Loader that restores the delayed scripts on the first interaction,
+	 * keeping the execution order.
 	 *
 	 * @return string
 	 */
@@ -245,7 +246,7 @@ JS;
 	 * ------------------------------------------------------------------ */
 
 	/**
-	 * Aggiunge loading="lazy" agli iframe che non lo dichiarano.
+	 * Adds loading="lazy" to iframes that do not declare it.
 	 *
 	 * @param string $html HTML.
 	 * @return string
@@ -264,10 +265,10 @@ JS;
 	}
 
 	/**
-	 * Inietta dns-prefetch/preconnect per gli host configurati.
+	 * Injects dns-prefetch hints for the configured hosts.
 	 *
 	 * @param string   $html  HTML.
-	 * @param string[] $hosts Host (es. fonts.googleapis.com o //fonts.googleapis.com).
+	 * @param string[] $hosts Hosts (e.g. fonts.googleapis.com or //fonts.googleapis.com).
 	 * @return string
 	 */
 	private function resource_hints( $html, array $hosts ) {
@@ -289,8 +290,8 @@ JS;
 	}
 
 	/**
-	 * Minifica l'HTML: rimuove commenti e comprime gli spazi, preservando
-	 * pre, textarea, script e style.
+	 * Minifies the HTML: removes comments and collapses whitespace, keeping
+	 * pre, textarea, script and style intact.
 	 *
 	 * @param string $html HTML.
 	 * @return string
@@ -298,7 +299,7 @@ JS;
 	private function minify_html( $html ) {
 		$placeholders = array();
 
-		// Protegge i blocchi sensibili agli spazi.
+		// Protect whitespace-sensitive blocks.
 		$protected = (string) preg_replace_callback(
 			'#<(pre|textarea|script|style)\b[^>]*>.*?</\1>#is',
 			function ( $matches ) use ( &$placeholders ) {
@@ -309,18 +310,18 @@ JS;
 			$html
 		);
 
-		// Commenti HTML (mantiene condizionali IE e commenti speciali).
+		// HTML comments (keeps IE conditionals and special comments).
 		$protected = (string) preg_replace( '/<!--(?!\[if)(?!<!)(?!\s*(?:noindex|googleoff|googleon|noptimize)).*?-->/s', '', $protected );
 
-		// Comprime gli spazi tra i tag e le sequenze di whitespace.
+		// Collapse whitespace between tags and whitespace runs.
 		$protected = (string) preg_replace( '/>\s{2,}</', '> <', $protected );
 		$protected = (string) preg_replace( '/[\r\n\t]+/', ' ', $protected );
 		$protected = (string) preg_replace( '/ {2,}/', ' ', $protected );
 
-		// Ripristina i blocchi protetti.
+		// Restore the protected blocks.
 		$minified = strtr( $protected, $placeholders );
 
-		// Sanity check: se qualcosa è andato storto, torna all'originale.
+		// Sanity check: if anything went wrong, return the original.
 		// A failing regex (e.g. PCRE backtrack limit on a huge page) returns
 		// null, cast to '' above: never replace a page with an empty string.
 		if ( false !== strpos( $minified, '%%SKIT-MINIFY-' ) || strlen( $minified ) < strlen( $html ) / 4 ) {
@@ -331,10 +332,10 @@ JS;
 	}
 
 	/**
-	 * Inietta markup subito prima di </body>.
+	 * Injects markup right before </body>.
 	 *
 	 * @param string $html   HTML.
-	 * @param string $markup Codice da iniettare.
+	 * @param string $markup Markup to inject.
 	 * @return string
 	 */
 	private function inject_before_body_end( $html, $markup ) {

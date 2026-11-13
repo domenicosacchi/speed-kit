@@ -1,8 +1,8 @@
 <?php
 /**
- * Purge — Invalidazione della cache: automatica sugli eventi di WordPress
- * (salvataggio post, commenti, termini, tema, menu) e manuale dall'admin.
- * Include il garbage collector cron per i file scaduti.
+ * Purge — Cache invalidation: automatic on WordPress events (post saves,
+ * comments, terms, theme, menus) and manual from the admin. Also contains
+ * the cron garbage collector for expired files.
  *
  * @package SpeedKit
  */
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class SKIT_Purge {
 
 	/**
-	 * Impostazioni correnti.
+	 * Current settings.
 	 *
 	 * @var array
 	 */
@@ -42,10 +42,10 @@ class SKIT_Purge {
 	}
 
 	/**
-	 * Registra gli hook di invalidazione.
+	 * Registers the invalidation hooks.
 	 */
 	public function init() {
-		// Contenuti.
+		// Content.
 		add_action( 'pre_post_update', array( $this, 'remember_old_url' ) );
 		add_action( 'wp_trash_post', array( $this, 'remember_old_url' ) );
 		add_action( 'save_post', array( $this, 'on_save_post' ), 10, 2 );
@@ -53,16 +53,16 @@ class SKIT_Purge {
 		add_action( 'trashed_post', array( $this, 'on_trashed_post' ) );
 		add_action( 'transition_post_status', array( $this, 'on_transition_post_status' ), 10, 3 );
 
-		// Commenti (cambiano il contenuto della pagina del post).
+		// Comments (they change the content of the post page).
 		add_action( 'comment_post', array( $this, 'on_comment' ), 10, 2 );
 		add_action( 'transition_comment_status', array( $this, 'on_comment_status' ), 10, 3 );
 
-		// Termini / tassonomie.
+		// Terms / taxonomies.
 		add_action( 'edited_term', array( $this, 'on_edited_term' ), 10, 3 );
 		// Before deletion: afterwards get_term_link() fails.
 		add_action( 'pre_delete_term', array( $this, 'on_pre_delete_term' ), 10, 2 );
 
-		// Cambi globali: tutto il dominio.
+		// Global changes: the whole domain.
 		add_action( 'switch_theme', array( $this, 'clean_domain' ) );
 		add_action( 'customize_save_after', array( $this, 'clean_domain' ) );
 		add_action( 'permalink_structure_changed', array( $this, 'clean_domain' ) );
@@ -70,7 +70,7 @@ class SKIT_Purge {
 		add_action( 'wp_update_nav_menu', array( $this, 'clean_domain' ) );
 		add_action( 'upgrader_process_complete', array( $this, 'clean_domain' ) );
 
-		// Garbage collector file scaduti.
+		// Garbage collector for expired files.
 		add_action( 'skit_cache_gc', array( $this, 'garbage_collect' ) );
 
 		// Reverse proxy detection (admin requests only).
@@ -78,7 +78,7 @@ class SKIT_Purge {
 	}
 
 	/* ---------------------------------------------------------------------
-	 * Handler eventi
+	 * Event handlers
 	 * ------------------------------------------------------------------ */
 
 	/**
@@ -114,9 +114,9 @@ class SKIT_Purge {
 	}
 
 	/**
-	 * Post salvato/aggiornato.
+	 * Post saved/updated.
 	 *
-	 * @param int     $post_id ID post.
+	 * @param int     $post_id Post ID.
 	 * @param WP_Post $post    Post.
 	 */
 	public function on_save_post( $post_id, $post ) {
@@ -133,10 +133,10 @@ class SKIT_Purge {
 	}
 
 	/**
-	 * Post eliminato definitivamente.
+	 * Post permanently deleted.
 	 *
-	 * @param int          $post_id ID post.
-	 * @param WP_Post|null $post    Post (dal 5.5).
+	 * @param int          $post_id Post ID.
+	 * @param WP_Post|null $post    Post (since WP 5.5).
 	 */
 	public function on_delete_post( $post_id, $post = null ) {
 		if ( $post instanceof WP_Post && is_post_type_viewable( $post->post_type ) ) {
@@ -145,9 +145,9 @@ class SKIT_Purge {
 	}
 
 	/**
-	 * Post cestinato: l'URL sparisce, purge di post e archivi collegati.
+	 * Post trashed: its URL goes away, purge the post and related archives.
 	 *
-	 * @param int $post_id ID post.
+	 * @param int $post_id Post ID.
 	 */
 	public function on_trashed_post( $post_id ) {
 		$post = get_post( $post_id );
@@ -157,10 +157,10 @@ class SKIT_Purge {
 	}
 
 	/**
-	 * Pubblicazione/depubblicazione.
+	 * Publish/unpublish.
 	 *
-	 * @param string  $new_status Nuovo stato.
-	 * @param string  $old_status Vecchio stato.
+	 * @param string  $new_status New status.
+	 * @param string  $old_status Old status.
 	 * @param WP_Post $post       Post.
 	 */
 	public function on_transition_post_status( $new_status, $old_status, $post ) {
@@ -177,10 +177,10 @@ class SKIT_Purge {
 	}
 
 	/**
-	 * Nuovo commento approvato.
+	 * New approved comment.
 	 *
-	 * @param int        $comment_id ID commento.
-	 * @param int|string $approved   1 se approvato.
+	 * @param int        $comment_id Comment ID.
+	 * @param int|string $approved   1 if approved.
 	 */
 	public function on_comment( $comment_id, $approved ) {
 		if ( 1 !== (int) $approved ) {
@@ -193,11 +193,11 @@ class SKIT_Purge {
 	}
 
 	/**
-	 * Cambio stato commento (approvazione/rimozione).
+	 * Comment status change (approval/removal).
 	 *
-	 * @param string     $new_status Nuovo stato.
-	 * @param string     $old_status Vecchio stato.
-	 * @param WP_Comment $comment    Commento.
+	 * @param string     $new_status New status.
+	 * @param string     $old_status Old status.
+	 * @param WP_Comment $comment    Comment.
 	 */
 	public function on_comment_status( $new_status, $old_status, $comment ) {
 		if ( $new_status === $old_status || ( 'approved' !== $new_status && 'approved' !== $old_status ) ) {
@@ -209,11 +209,11 @@ class SKIT_Purge {
 	}
 
 	/**
-	 * Termine modificato/eliminato: purge dell'archivio.
+	 * Term edited: purge its archive.
 	 *
-	 * @param int    $term_id  ID termine.
+	 * @param int    $term_id  Term ID.
 	 * @param int    $tt_id    Term taxonomy ID.
-	 * @param string $taxonomy Tassonomia.
+	 * @param string $taxonomy Taxonomy.
 	 */
 	public function on_edited_term( $term_id, $tt_id, $taxonomy ) {
 		$tax = get_taxonomy( $taxonomy );
@@ -227,11 +227,11 @@ class SKIT_Purge {
 	}
 
 	/* ---------------------------------------------------------------------
-	 * Operazioni di pulizia
+	 * Purge operations
 	 * ------------------------------------------------------------------ */
 
 	/**
-	 * Purge completo del dominio corrente. Equivalente di rocket_clean_domain.
+	 * Full purge of the current domain. Equivalent of rocket_clean_domain.
 	 */
 	public function clean_domain() {
 		$host = SKIT_Config::current_host();
@@ -242,14 +242,14 @@ class SKIT_Purge {
 		$this->varnish_purge( home_url( '/' ), 'all' );
 
 		/**
-		 * Scatta dopo un purge completo (usato ad es. per avviare il preload).
+		 * Fires after a full purge (used e.g. to start the preload).
 		 */
 		do_action( 'skit_after_clean_domain' );
 	}
 
 	/**
-	 * Purge di un post e di tutti gli URL correlati: home, archivi di termine,
-	 * archivio autore, archivio data, feed. Equivalente di rocket_clean_post.
+	 * Purges a post and all related URLs: home, term archives, author
+	 * archive, date archives. Equivalent of rocket_clean_post.
 	 *
 	 * @param WP_Post $post Post.
 	 */
@@ -261,16 +261,16 @@ class SKIT_Purge {
 			$urls[] = $permalink;
 		}
 
-		// Home e paginazione della home.
+		// Home page and its pagination.
 		$urls[] = home_url( '/' );
 
-		// Archivio del post type.
+		// Post type archive.
 		$archive = get_post_type_archive_link( $post->post_type );
 		if ( $archive ) {
 			$urls[] = $archive;
 		}
 
-		// Archivi dei termini associati.
+		// Archives of the assigned terms.
 		foreach ( get_object_taxonomies( $post->post_type ) as $taxonomy ) {
 			$tax = get_taxonomy( $taxonomy );
 			if ( ! $tax || ! $tax->public ) {
@@ -287,13 +287,13 @@ class SKIT_Purge {
 			}
 		}
 
-		// Archivio autore.
+		// Author archive.
 		$author = get_author_posts_url( (int) $post->post_author );
 		if ( $author ) {
 			$urls[] = $author;
 		}
 
-		// Archivio data (solo per i post).
+		// Date archives (posts only).
 		if ( 'post' === $post->post_type ) {
 			$year  = get_the_time( 'Y', $post );
 			$month = get_the_time( 'm', $post );
@@ -307,7 +307,7 @@ class SKIT_Purge {
 		}
 
 		/**
-		 * Filtra gli URL da ripulire quando un post cambia.
+		 * Filters the URLs purged when a post changes.
 		 *
 		 * @param string[] $urls
 		 * @param WP_Post  $post
@@ -324,7 +324,7 @@ class SKIT_Purge {
 			}
 			$this->purged[ $key ] = true;
 			++$new;
-			// true = include le sottopagine di paginazione (/page/2/...).
+			// true = also the pagination subpages (/page/2/...).
 			$this->clean_url( (string) $url, true );
 		}
 		if ( 0 === $new ) {
@@ -332,7 +332,7 @@ class SKIT_Purge {
 		}
 
 		/**
-		 * Scatta dopo il purge di un post (usato per il preload mirato).
+		 * Fires after a post purge (used for the targeted preload).
 		 *
 		 * @param WP_Post  $post
 		 * @param string[] $urls
@@ -341,10 +341,10 @@ class SKIT_Purge {
 	}
 
 	/**
-	 * Elimina i file di cache di un singolo URL.
+	 * Deletes the cache files of a single URL.
 	 *
-	 * @param string $url             URL completo.
-	 * @param bool   $with_pagination True per eliminare anche /page/N/.
+	 * @param string $url             Full URL.
+	 * @param bool   $with_pagination True to also delete /page/N/.
 	 */
 	public function clean_url( $url, $with_pagination = false ) {
 		$pagination_base = 'page';
@@ -353,8 +353,8 @@ class SKIT_Purge {
 			$pagination_base = $wp_rewrite->pagination_base;
 		}
 
-		// Prima di tutto il proxy (Varnish): va invalidato anche quando
-		// la cache su file non ha nulla per questo URL. Pagination is a
+		// The proxy (Varnish) first: it must be invalidated even when the disk
+		// cache has nothing for this URL. Pagination is a
 		// separate, narrow regex purge: a regex on the URL itself would flush
 		// the whole site when the URL is the home page.
 		$this->varnish_purge( $url, 'url' );
@@ -367,7 +367,7 @@ class SKIT_Purge {
 			return;
 		}
 
-		// Elimina i file index* (tutte le varianti: https, mobile, gzip).
+		// Delete the index* files (all variants: https, mobile, gzip).
 		foreach ( (array) glob( $dir . '/index*' ) as $file ) {
 			if ( is_file( $file ) ) {
 				@unlink( $file ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
@@ -439,7 +439,7 @@ class SKIT_Purge {
 	}
 
 	/**
-	 * Invalida un URL anche sul reverse proxy (Varnish).
+	 * Invalidates a URL on the reverse proxy (Varnish) too.
 	 *
 	 * - cloudways: same requests as Breeze, the official Cloudways plugin:
 	 *   URLPURGE for a single URL and PURGE "/.*" for the whole application,
@@ -450,11 +450,11 @@ class SKIT_Purge {
 	 *   X-Purge-Method header (default | regex), sent to the site host or to
 	 *   SKIT_VARNISH_IP.
 	 *
-	 * Non blocca il salvataggio: richiesta non bloccante, timeout breve.
-	 * Disattivabile con `define( 'SKIT_NO_VARNISH', true )`, con l'opzione
-	 * "Varnish" nelle impostazioni o col filtro `skit_varnish_enabled`.
+	 * Never blocks the save: non-blocking request, short timeout.
+	 * Can be disabled with `define( 'SKIT_NO_VARNISH', true )`, with the
+	 * "Varnish purge" setting or with the `skit_varnish_enabled` filter.
 	 *
-	 * @param string $url   URL completo da invalidare.
+	 * @param string $url   Full URL to invalidate.
 	 * @param string $scope 'url' (this URL), 'subtree' (regex on everything
 	 *                      below the URL) or 'all' (whole site).
 	 */
@@ -524,9 +524,9 @@ class SKIT_Purge {
 	}
 
 	/**
-	 * Converte un URL nella cartella di cache corrispondente.
+	 * Converts a URL into the matching cache directory.
 	 *
-	 * @param string $url URL completo.
+	 * @param string $url Full URL.
 	 * @return string
 	 */
 	public static function url_to_cache_dir( $url ) {
@@ -542,7 +542,7 @@ class SKIT_Purge {
 		$path = isset( $parts['path'] ) ? rawurldecode( $parts['path'] ) : '/';
 		$path = '/' . ltrim( $path, '/' );
 		$path = rtrim( $path, '/' );
-		// Path traversal: mai accettare ".." (str_replace è aggirabile).
+		// Path traversal: never accept ".." (str_replace can be bypassed).
 		if ( false !== strpos( $path, '..' ) || false !== strpos( $path, "\0" ) ) {
 			return '';
 		}
@@ -551,17 +551,17 @@ class SKIT_Purge {
 	}
 
 	/**
-	 * Elimina ricorsivamente una cartella (limitata alla cache dir).
+	 * Recursively deletes a directory (limited to the cache directory).
 	 *
-	 * @param string $dir Cartella da eliminare.
+	 * @param string $dir Directory to delete.
 	 */
 	public static function delete_dir( $dir ) {
 		$dir  = untrailingslashit( $dir );
 		$base = untrailingslashit( SKIT_CACHE_DIR );
 
-		// Sicurezza: mai uscire dalla cartella di cache. Il confronto va
-		// fatto sui path risolti (realpath), non sulle stringhe: "base/../x"
-		// supererebbe un semplice controllo di prefisso.
+		// Safety: never leave the cache directory. The comparison is done on
+		// resolved paths (realpath), not on strings: "base/../x" would pass a
+		// plain prefix check.
 		if ( '' === $dir || ! is_dir( $dir ) ) {
 			return;
 		}
@@ -586,7 +586,7 @@ class SKIT_Purge {
 	}
 
 	/**
-	 * Cron: elimina i file più vecchi della durata di vita configurata.
+	 * Cron: deletes the files older than the configured lifespan.
 	 */
 	public function garbage_collect() {
 		$lifespan = (int) $this->settings['cache_lifespan'];
@@ -603,19 +603,19 @@ class SKIT_Purge {
 		$assets_dir = $root . '/_assets';
 		foreach ( $items as $item ) {
 			if ( $item->isFile() && $item->getMTime() < $cutoff ) {
-				// I file nella root (.htaccess e index.html di protezione)
-				// non sono file di cache: non vanno mai toccati.
+				// Files in the root (protective .htaccess and index.html) are not
+				// cache files: never touch them.
 				if ( untrailingslashit( dirname( $item->getPathname() ) ) === $root ) {
 					continue;
 				}
-				// I CSS minificati in _assets/ sono referenziati dalle pagine
-				// in cache: si buttano solo con il purge completo, mai a tempo.
+				// Minified CSS files in _assets/ are referenced by cached pages:
+				// they go only with a full purge, never by age.
 				if ( 0 === strpos( $item->getPathname(), $assets_dir ) ) {
 					continue;
 				}
 				@unlink( $item->getPathname() ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 			} elseif ( $item->isDir() ) {
-				// Rimuove le cartelle rimaste vuote.
+				// Removes directories left empty.
 				@rmdir( $item->getPathname() ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 			}
 		}

@@ -1,15 +1,15 @@
 <?php
 /**
- * Media — Lazyload avanzato delle immagini e facade YouTube.
+ * Media — Image lazyload and YouTube facade.
  *
- * Lazyload: aggiunge loading="lazy" e decoding="async" alle immagini,
- * saltando le prime N (above the fold, tipicamente l'immagine LCP che
- * deve invece caricarsi subito).
+ * Lazyload: adds loading="lazy" and decoding="async" to images, skipping
+ * the first N (above the fold, typically the LCP image, which must load
+ * right away).
  *
- * Facade YouTube: sostituisce gli iframe di YouTube con la sola thumbnail
- * più un pulsante play; l'iframe reale (con i suoi ~800 KB di JS) viene
- * creato solo al click. Equivalente del "Replace YouTube iframe with
- * preview image" di WP Rocket.
+ * YouTube facade: replaces YouTube iframes with just the thumbnail and a
+ * play button; the real iframe (and its JavaScript) is created only on
+ * click. Equivalent of WP Rocket's "Replace YouTube iframe with preview
+ * image".
  *
  * @package SpeedKit
  */
@@ -21,21 +21,21 @@ if ( ! defined( 'ABSPATH' ) ) {
 class SKIT_Media {
 
 	/**
-	 * Impostazioni correnti.
+	 * Current settings.
 	 *
 	 * @var array
 	 */
 	private $settings;
 
 	/**
-	 * Contatore immagini incontrate nella pagina.
+	 * Number of images found in the page so far.
 	 *
 	 * @var int
 	 */
 	private $image_count = 0;
 
 	/**
-	 * True se nella pagina è stata inserita almeno una facade.
+	 * True when at least one facade was inserted in the page.
 	 *
 	 * @var bool
 	 */
@@ -46,16 +46,16 @@ class SKIT_Media {
 	}
 
 	/**
-	 * Registra il filtro sul buffer (prima delle altre ottimizzazioni URL).
+	 * Registers the buffer filter (before the other URL optimizations).
 	 */
 	public function init() {
 		add_filter( 'skit_buffer', array( $this, 'process' ), 8 );
 	}
 
 	/**
-	 * Applica lazyload immagini e facade YouTube.
+	 * Applies image lazyload and the YouTube facade.
 	 *
-	 * @param string $html Buffer della pagina.
+	 * @param string $html Page buffer.
 	 * @return string
 	 */
 	public function process( $html ) {
@@ -81,12 +81,12 @@ class SKIT_Media {
 	}
 
 	/* ---------------------------------------------------------------------
-	 * Lazyload immagini
+	 * Image lazyload
 	 * ------------------------------------------------------------------ */
 
 	/**
-	 * Aggiunge loading="lazy" e decoding="async" alle img, saltando le
-	 * prime N e quelle esplicitamente escluse.
+	 * Adds loading="lazy" and decoding="async" to img tags, skipping the
+	 * first N and the explicitly excluded ones.
 	 *
 	 * @param string $html HTML.
 	 * @return string
@@ -95,8 +95,8 @@ class SKIT_Media {
 		$skip_first = max( 0, (int) $this->settings['lazyload_skip_first'] );
 
 		/**
-		 * Filtra le stringhe che escludono un'immagine dal lazyload
-		 * (match sull'intero tag).
+		 * Filters the strings that exclude an image from lazyload
+		 * (matched against the whole tag).
 		 *
 		 * @param string[] $exclusions
 		 */
@@ -113,7 +113,7 @@ class SKIT_Media {
 
 				$this->image_count++;
 
-				// Le prime N immagini (above the fold / LCP) caricano subito.
+				// The first N images (above the fold / LCP) load right away.
 				if ( $this->image_count <= $skip_first ) {
 					return $tag;
 				}
@@ -142,11 +142,11 @@ class SKIT_Media {
 	}
 
 	/* ---------------------------------------------------------------------
-	 * Facade YouTube
+	 * YouTube facade
 	 * ------------------------------------------------------------------ */
 
 	/**
-	 * Sostituisce gli iframe YouTube con thumbnail + pulsante play.
+	 * Replaces YouTube iframes with thumbnail + play button.
 	 *
 	 * @param string $html HTML.
 	 * @return string
@@ -161,20 +161,20 @@ class SKIT_Media {
 					return $matches[0];
 				}
 
-				// Estrae l'ID video da youtube.com/embed/ID o youtube-nocookie.com/embed/ID.
+				// Extract the video ID from youtube.com/embed/ID or youtube-nocookie.com/embed/ID.
 				if ( ! preg_match( '#(?:youtube(?:-nocookie)?\.com)/embed/([A-Za-z0-9_-]{6,15})#i', $src[1], $id ) ) {
 					return $matches[0];
 				}
 				$video_id = $id[1];
 
-				// Rispetta un eventuale title per l'accessibilità.
-				$title = 'Video YouTube';
+				// Keep an existing title for accessibility.
+				$title = __( 'YouTube video', 'speed-kit' );
 				if ( preg_match( '/(?<![\w-])title\s*=\s*"([^"]*)"/i', $attrs, $t ) ) {
 					$title = $t[1];
 				}
 
-				// Parametri della query originale (start=, list=...) da
-				// ripassare all'iframe reale al click.
+				// Original query parameters (start=, list=...) passed on to the
+				// real iframe on click.
 				$query = '';
 				if ( preg_match( '/\/embed\/[A-Za-z0-9_-]+\?([^"\'\s>]+)/i', $src[1], $q ) ) {
 					$query = htmlspecialchars( html_entity_decode( $q[1] ), ENT_QUOTES );
@@ -184,7 +184,8 @@ class SKIT_Media {
 
 				return '<button type="button" class="skit-yt" data-skit-yt="' . esc_attr( $video_id ) . '"'
 					. ( '' !== $query ? ' data-skit-yt-q="' . $query . '"' : '' )
-					. ' aria-label="Riproduci: ' . esc_attr( $title ) . '">'
+					/* translators: %s: video title. */
+					. ' aria-label="' . esc_attr( sprintf( __( 'Play: %s', 'speed-kit' ), $title ) ) . '">'
 					. '<img src="https://i.ytimg.com/vi/' . esc_attr( $video_id ) . '/hqdefault.jpg" alt="' . esc_attr( $title ) . '" loading="lazy" decoding="async">'
 					. '<span class="skit-yt-play" aria-hidden="true"></span>'
 					. '</button>';
@@ -194,7 +195,7 @@ class SKIT_Media {
 	}
 
 	/**
-	 * Inietta CSS e JS della facade (una sola volta, prima di </body>).
+	 * Injects the facade CSS and JS (once, before </body>).
 	 *
 	 * @param string $html HTML.
 	 * @return string

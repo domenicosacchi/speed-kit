@@ -1,8 +1,9 @@
 <?php
 /**
- * Activator — Installazione e rimozione pulita di tutte le parti "invasive":
- * drop-in advanced-cache.php, costante WP_CACHE in wp-config.php, regole
- * .htaccess, file di configurazione, eventi cron.
+ * Activator — Clean installation and removal of every part that lives
+ * outside the plugin folder: the advanced-cache.php drop-in, the WP_CACHE
+ * constant in wp-config.php, the .htaccess rules, the config files and the
+ * cron events.
  *
  * @package SpeedKit
  */
@@ -14,10 +15,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 class SKIT_Activator {
 
 	/**
-	 * Attivazione plugin.
+	 * Plugin activation.
 	 */
 	public static function activate() {
-		// Con WP Rocket ancora attivo non tocchiamo drop-in e htaccess.
+		// While WP Rocket is still active, drop-in and .htaccess are left alone.
 		if ( defined( 'WP_ROCKET_VERSION' ) ) {
 			set_transient( 'skit_activation_conflict', 'wp-rocket', 5 * MINUTE_IN_SECONDS );
 			return;
@@ -42,7 +43,7 @@ class SKIT_Activator {
 	}
 
 	/**
-	 * Disattivazione: rimuove tutto ciò che è fuori dalla cartella del plugin.
+	 * Deactivation: removes everything outside the plugin folder.
 	 */
 	public static function deactivate() {
 		self::remove_dropin();
@@ -62,14 +63,14 @@ class SKIT_Activator {
 	}
 
 	/**
-	 * Copia il drop-in advanced-cache.php in wp-content.
+	 * Copies the advanced-cache.php drop-in to wp-content.
 	 *
 	 * @return bool
 	 */
 	public static function install_dropin() {
 		$target = WP_CONTENT_DIR . '/advanced-cache.php';
 
-		// Non sovrascrivere il drop-in di un altro plugin di cache.
+		// Never overwrite another cache plugin's drop-in.
 		if ( file_exists( $target ) ) {
 			$head = (string) file_get_contents( $target, false, null, 0, 200 ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
 			if ( '' !== trim( $head ) && false === strpos( $head, 'SpeedKit' ) ) {
@@ -131,7 +132,7 @@ class SKIT_Activator {
 	}
 
 	/**
-	 * Rimuove il drop-in solo se è il nostro.
+	 * Removes the drop-in, only if it is ours.
 	 */
 	public static function remove_dropin() {
 		$target = WP_CONTENT_DIR . '/advanced-cache.php';
@@ -145,9 +146,9 @@ class SKIT_Activator {
 	}
 
 	/**
-	 * Imposta o rimuove define('WP_CACHE', true) in wp-config.php.
+	 * Adds or removes define( 'WP_CACHE', true ) in wp-config.php.
 	 *
-	 * @param bool $enable True per abilitare la costante.
+	 * @param bool $enable True to enable the constant.
 	 * @return bool
 	 */
 	public static function set_wp_cache_constant( $enable ) {
@@ -233,7 +234,7 @@ class SKIT_Activator {
 	}
 
 	/**
-	 * Trova wp-config.php (anche un livello sopra la root, setup comune).
+	 * Finds wp-config.php (also one level above the root, a common setup).
 	 *
 	 * @return string
 	 */
@@ -250,7 +251,7 @@ class SKIT_Activator {
 	}
 
 	/**
-	 * Impedisce il listing della cartella di cache.
+	 * Prevents directory listing of the cache folder.
 	 */
 	private static function protect_cache_dir() {
 		$htaccess = SKIT_CACHE_DIR . '.htaccess';

@@ -1,7 +1,7 @@
 <?php
 /**
- * Uninstall — Rimozione completa: opzioni, cron, cache, config,
- * drop-in, costante WP_CACHE e regole .htaccess.
+ * Uninstall — Full removal: options, cron events, cache, config files,
+ * drop-in, the WP_CACHE constant and the .htaccess rules.
  *
  * @package SpeedKit
  */

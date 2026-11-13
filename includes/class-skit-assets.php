@@ -1,13 +1,12 @@
 <?php
 /**
- * Assets — Ottimizzazione degli asset statici, tutto in locale:
- * minify dei CSS (con cache su disco e cache-busting automatico),
- * Google Fonts con display=swap e preconnect, preload dei font critici,
- * rimozione dello script emoji.
+ * Assets — Static asset optimization, all local: CSS minify (cached on
+ * disk, with automatic cache busting), Google Fonts with display=swap
+ * and preconnect, preload of critical fonts, removal of the emoji script.
  *
- * A differenza di WP Rocket qui non c'è il minify/combine JS: i JS
- * distribuiti sono già minificati e con gzip + defer il guadagno reale
- * è nullo a fronte di un rischio concreto di rotture.
+ * Unlike WP Rocket there is no JS minify/combine: distributed scripts are
+ * already minified, and with gzip + defer the real gain does not justify
+ * the concrete risk of breaking things.
  *
  * @package SpeedKit
  */
@@ -19,12 +18,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 class SKIT_Assets {
 
 	/**
-	 * Cartella su disco dei CSS minificati (esclusa dal GC e dal purge per host).
+	 * Disk folder of the minified CSS files (skipped by the GC and by per-host purges).
 	 */
 	const ASSETS_DIR = '_assets';
 
 	/**
-	 * Impostazioni correnti.
+	 * Current settings.
 	 *
 	 * @var array
 	 */
@@ -35,7 +34,7 @@ class SKIT_Assets {
 	}
 
 	/**
-	 * Registra filtri e azioni.
+	 * Registers filters and actions.
 	 */
 	public function init() {
 		add_filter( 'skit_buffer', array( $this, 'process' ), 20 );
@@ -44,8 +43,8 @@ class SKIT_Assets {
 			add_action( 'init', array( $this, 'disable_emojis' ) );
 		}
 
-		// Al purge completo si buttano anche i CSS minificati:
-		// verranno rigenerati insieme alle pagine.
+		// A full purge also drops the minified CSS files: they are rebuilt
+		// together with the pages.
 		add_action(
 			'skit_after_clean_domain',
 			function () {
@@ -55,7 +54,7 @@ class SKIT_Assets {
 	}
 
 	/**
-	 * Trasformazioni sul buffer di pagina.
+	 * Transformations of the page buffer.
 	 *
 	 * @param string $html HTML.
 	 * @return string
@@ -86,9 +85,9 @@ class SKIT_Assets {
 	 * ------------------------------------------------------------------ */
 
 	/**
-	 * Riscrive i <link rel="stylesheet"> locali verso versioni minificate
-	 * salvate in cache. Il nome file include l'mtime dell'originale:
-	 * cache-busting automatico a ogni aggiornamento del CSS.
+	 * Rewrites local <link rel="stylesheet"> tags to minified copies saved in
+	 * the cache. The file name includes the original's mtime: automatic
+	 * cache busting whenever the CSS changes.
 	 *
 	 * @param string $html HTML.
 	 * @return string
@@ -118,10 +117,10 @@ class SKIT_Assets {
 	}
 
 	/**
-	 * Dato l'URL di un CSS locale restituisce l'URL della versione
-	 * minificata (generandola se serve), o '' se non gestibile.
+	 * Given the URL of a local CSS file, returns the URL of the minified
+	 * copy (generating it when needed), or '' when it cannot be handled.
 	 *
-	 * @param string $url URL del foglio di stile.
+	 * @param string $url Stylesheet URL.
 	 * @return string
 	 */
 	private function minified_css_url( $url ) {
@@ -137,7 +136,7 @@ class SKIT_Assets {
 		}
 
 		/**
-		 * Filtra i pattern di CSS esclusi dal minify (match sull'URL).
+		 * Filters the CSS patterns excluded from minify (matched against the URL).
 		 *
 		 * @param string[] $exclusions
 		 */
@@ -175,20 +174,21 @@ class SKIT_Assets {
 			@rename( $tmp, $file ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 		}
 
-		// Follows a custom SKIT_CACHE_DIR (checked as not web-accessible below).
+		// Follows a custom SKIT_CACHE_DIR (see the cache_url() check above).
 		return trailingslashit( $cache_url ) . self::ASSETS_DIR . '/' . $key;
 	}
 
 	/**
-	 * Minificazione CSS conservativa: commenti, whitespace e rebase degli
-	 * url() relativi (che altrimenti punterebbero alla cartella di cache).
+	 * Conservative CSS minification: comments, whitespace and rebasing of
+	 * relative url() references (which would otherwise point to the cache
+	 * folder).
 	 *
-	 * @param string $css     Contenuto CSS.
-	 * @param string $src_url URL originale del file (per il rebase).
+	 * @param string $css     CSS content.
+	 * @param string $src_url Original file URL (for rebasing).
 	 * @return string
 	 */
 	public function minify_css( $css, $src_url ) {
-		// Rebase: url(x.png) relativo alla posizione originale del CSS.
+		// Rebase: url(x.png) relative to the original location of the CSS.
 		$base = preg_replace( '#/[^/]*(\?.*)?$#', '/', $src_url );
 		$css  = (string) preg_replace_callback(
 			'/url\(\s*([\'"]?)([^\'")]+)\1\s*\)/i',
@@ -202,7 +202,7 @@ class SKIT_Assets {
 			$css
 		);
 
-		// Commenti (conservando eventuali /*! license */).
+		// Comments (keeping /*! license */ blocks).
 		$css = (string) preg_replace( '#/\*(?!!).*?\*/#s', '', $css );
 		// Whitespace.
 		$css = (string) preg_replace( '/\s+/', ' ', $css );
@@ -216,9 +216,9 @@ class SKIT_Assets {
 	}
 
 	/**
-	 * Converte un URL in path locale se punta a un file statico del sito.
+	 * Converts a URL to a local path when it points to a static file of the site.
 	 *
-	 * @param string $url URL (assoluto, relativo o protocol-relative).
+	 * @param string $url URL (absolute, relative or protocol-relative).
 	 * @return string
 	 */
 	private function url_to_local_path( $url ) {
@@ -233,8 +233,8 @@ class SKIT_Assets {
 		}
 
 		$path = rawurldecode( $parts['path'] );
-		// Normalizzati senza slash finale, a prescindere da come le funzioni
-		// WP compongono l'URL (content_url non lo ha, includes_url sì).
+		// Normalized without a trailing slash, whatever the WordPress functions
+		// return (content_url() has none, includes_url() has one).
 		$content_path  = untrailingslashit( (string) wp_parse_url( content_url(), PHP_URL_PATH ) );
 		$includes_path = untrailingslashit( (string) wp_parse_url( includes_url(), PHP_URL_PATH ) );
 
@@ -258,8 +258,8 @@ class SKIT_Assets {
 	 * ------------------------------------------------------------------ */
 
 	/**
-	 * Aggiunge display=swap agli URL di Google Fonts che non lo hanno
-	 * (testo visibile subito con il font di fallback) e un preconnect a
+	 * Adds display=swap to Google Fonts URLs that lack it (text is visible
+	 * right away with the fallback font) and a preconnect to
 	 * fonts.gstatic.com.
 	 *
 	 * @param string $html HTML.
@@ -290,10 +290,10 @@ class SKIT_Assets {
 	}
 
 	/**
-	 * Inietta <link rel="preload"> per i font critici configurati.
+	 * Injects <link rel="preload"> for the configured critical fonts.
 	 *
 	 * @param string   $html  HTML.
-	 * @param string[] $fonts URL dei font (relativi o assoluti).
+	 * @param string[] $fonts Font URLs (relative or absolute).
 	 * @return string
 	 */
 	private function preload_fonts( $html, array $fonts ) {
@@ -319,8 +319,8 @@ class SKIT_Assets {
 	 * ------------------------------------------------------------------ */
 
 	/**
-	 * Rimuove lo script emoji di WordPress (~10 KB inutili su ogni pagina:
-	 * tutti i browser moderni rendono le emoji nativamente).
+	 * Removes the WordPress emoji script (modern browsers render emoji
+	 * natively).
 	 */
 	public function disable_emojis() {
 		remove_action( 'wp_head', 'print_emoji_detection_script', 7 );

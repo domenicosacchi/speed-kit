@@ -1,8 +1,7 @@
 <?php
 /**
- * CDN — Riscrive gli URL degli asset statici verso un host CDN
- * (es. cdn.tuosito.it o un pull-zone). Equivalente della scheda CDN di
- * WP Rocket, senza il loro RocketCDN in abbonamento.
+ * CDN — Rewrites static asset URLs to a CDN host (e.g. cdn.example.com
+ * or a pull zone). Equivalent of WP Rocket's CDN tab.
  *
  * @package SpeedKit
  */
@@ -14,14 +13,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 class SKIT_Cdn {
 
 	/**
-	 * Impostazioni correnti.
+	 * Current settings.
 	 *
 	 * @var array
 	 */
 	private $settings;
 
 	/**
-	 * Host CDN normalizzato (senza schema né slash).
+	 * Normalized CDN host (no scheme, no slashes).
 	 *
 	 * @var string
 	 */
@@ -32,8 +31,8 @@ class SKIT_Cdn {
 	}
 
 	/**
-	 * Registra il filtro sul buffer (per ultimo: vede anche gli URL
-	 * riscritti dal minify CSS).
+	 * Registers the buffer filter (last: it also sees the URLs rewritten by
+	 * the CSS minify).
 	 */
 	public function init() {
 		if ( empty( $this->settings['cdn_enabled'] ) || empty( $this->settings['cdn_host'] ) ) {
@@ -51,7 +50,7 @@ class SKIT_Cdn {
 	}
 
 	/**
-	 * Riscrive src/href/srcset degli asset statici verso il CDN.
+	 * Rewrites src/href/srcset of static assets to the CDN.
 	 *
 	 * @param string $html HTML.
 	 * @return string
@@ -68,8 +67,9 @@ class SKIT_Cdn {
 		$cdn  = '//' . $this->cdn_host;
 		$site = '(?:(?:https?:)?//' . preg_quote( $home_host, '#' ) . ')?';
 
-		// URL assoluti del proprio host o relativi a /wp-content|/wp-includes,
-		// dentro attributi src/href e con estensione statica.
+		// Absolute URLs of the site's own host or relative to
+		// /wp-content|/wp-includes, inside src/href attributes, with a static
+		// file extension.
 		$pattern = '#(\b(?:src|href|data-src)\s*=\s*["\'])'
 			. $site
 			. '(/(?:wp-content|wp-includes)/[^"\'\s>]+?\.(?:' . $extensions . ')(?:\?[^"\'\s>]*)?)'
@@ -83,8 +83,8 @@ class SKIT_Cdn {
 			$html
 		);
 
-		// srcset: più URL separati da virgola dentro lo stesso attributo,
-		// riscritti uno per uno.
+		// srcset: several comma-separated URLs in one attribute, rewritten one
+		// by one.
 		$url_in_srcset = '#' . $site . '(/(?:wp-content|wp-includes)/[^\s,"\']+?\.(?:' . $extensions . ')(?:\?[^\s,"\']*)?)#i';
 		$html          = (string) preg_replace_callback(
 			'#((?:srcset|data-srcset)\s*=\s*)(["\'])(.*?)\2#is',
@@ -95,7 +95,7 @@ class SKIT_Cdn {
 			$html
 		);
 
-		// Preconnect al CDN.
+		// Preconnect to the CDN.
 		$link = '<link rel="preconnect" href="' . esc_url( $cdn ) . '" crossorigin>';
 		if ( false === stripos( $html, $link ) ) {
 			$html = (string) preg_replace( '/<head(\s[^>]*)?>/i', '$0' . $link, $html, 1 );

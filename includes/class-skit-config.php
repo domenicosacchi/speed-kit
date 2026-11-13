@@ -1,7 +1,7 @@
 <?php
 /**
- * Config — Genera il file di configurazione per host letto dal drop-in
- * advanced-cache.php (che gira prima del caricamento di opzioni e plugin).
+ * Config — Writes the per-host configuration file read by the
+ * advanced-cache.php drop-in (which runs before options and plugins load).
  *
  * @package SpeedKit
  */
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class SKIT_Config {
 
 	/**
-	 * Impostazioni di default del plugin.
+	 * Default plugin settings.
 	 *
 	 * @return array
 	 */
@@ -21,38 +21,38 @@ class SKIT_Config {
 		return array(
 			// Page cache.
 			'cache_enabled'         => 1,
-			'cache_mobile_separate' => 0,       // Cache separata per mobile (serve solo con temi non responsive).
-			'cache_lifespan'        => 10 * HOUR_IN_SECONDS, // 0 = mai, altrimenti secondi.
-			'exclude_uris'          => array(), // Regex (una per riga in admin) di URI esclusi.
-			'ignored_query_params'  => array(), // Vuoto = usa i default del drop-in.
+			'cache_mobile_separate' => 0,       // Separate mobile cache (only needed with non-responsive themes).
+			'cache_lifespan'        => 10 * HOUR_IN_SECONDS, // 0 = never, otherwise seconds.
+			'exclude_uris'          => array(), // Regexes (one per line in the admin) of excluded URIs.
+			'ignored_query_params'  => array(), // Empty = use the drop-in defaults.
 			'skip_cookies_extra'    => array(), // Extra cookie name prefixes that bypass the cache.
 
-			// Regole .htaccess.
-			'htaccess_browser_cache' => 1,      // Expires/Cache-Control per asset statici.
+			// .htaccess rules.
+			'htaccess_browser_cache' => 1,      // Expires/Cache-Control for static assets.
 			'htaccess_gzip'          => 1,      // mod_deflate.
-			'htaccess_direct_serve'  => 1,      // mod_rewrite: serve i file di cache senza PHP.
+			'htaccess_direct_serve'  => 1,      // mod_rewrite: serves cache files without PHP.
 
-			// Ottimizzazioni HTML.
+			// HTML optimizations.
 			'minify_html'           => 1,
 			'defer_js'              => 1,
-			'defer_js_exclude'      => array(), // Pattern (una per riga) esclusi dal defer.
-			'delay_js'              => 0,       // Rinvia l'esecuzione JS alla prima interazione.
+			'defer_js_exclude'      => array(), // Patterns (one per line) excluded from defer.
+			'delay_js'              => 0,       // Delays JS execution until the first interaction.
 			'delay_js_exclude'      => array(),
 			'lazyload_iframes'      => 1,
-			'dns_prefetch'          => array(), // Host per dns-prefetch/preconnect.
+			'dns_prefetch'          => array(), // Hosts for dns-prefetch.
 
 			// Media.
 			'lazyload_images'       => 1,
-			'lazyload_skip_first'   => 2,       // Le prime N immagini (LCP) caricano subito.
-			'youtube_facade'        => 0,       // Thumbnail al posto dell'iframe YouTube.
+			'lazyload_skip_first'   => 2,       // The first N images (LCP) load immediately.
+			'youtube_facade'        => 0,       // Thumbnail instead of the YouTube iframe.
 
-			// Asset statici.
+			// Static assets.
 			'minify_css'            => 1,
 			'minify_css_exclude'    => array(),
 			'font_display_swap'     => 1,       // Google Fonts: display=swap + preconnect.
-			'preload_fonts'         => array(), // URL font critici da precaricare.
+			'preload_fonts'         => array(), // Critical font URLs to preload.
 			'disable_emojis'        => 1,
-			'preload_links'         => 1,       // Prefetch dei link interni al hover.
+			'preload_links'         => 1,       // Prefetch of internal links on hover.
 
 			// CDN.
 			'cdn_enabled'           => 0,
@@ -62,16 +62,16 @@ class SKIT_Config {
 			'varnish_mode'          => 'auto',  // auto | cloudways | generic | off.
 
 			// Database.
-			'db_auto_cleanup'       => 0,       // Pulizia settimanale automatica.
+			'db_auto_cleanup'       => 0,       // Automatic weekly cleanup.
 
 			// Preload.
 			'preload_enabled'       => 1,
-			'preload_sitemap'       => '',      // Vuoto = /sitemap.xml e /sitemap_index.xml.
+			'preload_sitemap'       => '',      // Empty = auto-detect (sitemap_index.xml, sitemap.xml, wp-sitemap.xml).
 		);
 	}
 
 	/**
-	 * Restituisce le impostazioni correnti unite ai default.
+	 * Returns the current settings merged with the defaults.
 	 *
 	 * @return array
 	 */
@@ -82,7 +82,7 @@ class SKIT_Config {
 	}
 
 	/**
-	 * Scrive il file di configurazione per l'host corrente.
+	 * Writes the configuration file for the current host.
 	 *
 	 * @return bool
 	 */
@@ -97,7 +97,7 @@ class SKIT_Config {
 			return false;
 		}
 
-		// Sottoinsieme delle impostazioni necessarie al drop-in.
+		// Subset of the settings the drop-in needs.
 		$config = array(
 			'cache_enabled'         => (int) $settings['cache_enabled'],
 			'cache_mobile_separate' => (int) $settings['cache_mobile_separate'],
@@ -109,8 +109,8 @@ class SKIT_Config {
 
 		$content  = "<?php\n";
 		$content .= "defined( 'ABSPATH' ) || exit;\n";
-		$content .= "// SpeedKit config — generato automaticamente, non modificare a mano.\n";
-		$content .= "// Rigenerato a ogni salvataggio delle impostazioni.\n";
+		$content .= "// SpeedKit config - generated automatically, do not edit by hand.\n";
+		$content .= "// Regenerated every time the settings are saved.\n";
 		$content .= 'return ' . var_export( $config, true ) . ";\n"; // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_var_export
 
 		$file = SKIT_CONFIG_DIR . $host . '.php';
@@ -125,7 +125,7 @@ class SKIT_Config {
 		}
 		self::opcache_invalidate( $file );
 
-		// Protegge la cartella da listing.
+		// Prevents directory listing.
 		$index = SKIT_CONFIG_DIR . 'index.php';
 		if ( ! file_exists( $index ) ) {
 			file_put_contents( $index, "<?php\n// Silence is golden.\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
@@ -245,7 +245,7 @@ class SKIT_Config {
 	}
 
 	/**
-	 * Elimina i file di configurazione (disattivazione/uninstall).
+	 * Deletes the configuration files (deactivation/uninstall).
 	 */
 	public static function delete_config_files() {
 		if ( ! is_dir( SKIT_CONFIG_DIR ) ) {
@@ -258,7 +258,7 @@ class SKIT_Config {
 	}
 
 	/**
-	 * Host corrente normalizzato come nel drop-in.
+	 * Current host, normalized like in the drop-in.
 	 *
 	 * @return string
 	 */
