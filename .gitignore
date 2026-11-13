@@ -1,0 +1,18 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Archives and build output
+*.zip
+build/
+dist/
+node_modules/
+vendor/
+
+# Cache / runtime
+cache/
+*.log
+.phpunit.result.cache
